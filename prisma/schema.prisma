@@ -1,0 +1,74 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Subreddit {
+  id                String   @id @default(cuid())
+  name              String   @unique
+  displayName       String?
+  description       String?
+  subscribers       Int      @default(0)
+  over18            Boolean  @default(false)
+  allowPromo        Boolean?
+  requiresVerify    Boolean?
+  postLimit         String?
+  promoDays         String?
+  iconUrl           String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  rules             Rule[]
+  favorites         Favorite[]
+  trends            Trend[]
+
+  @@map("subreddits")
+}
+
+model Rule {
+  id                String    @id @default(cuid())
+  subredditId       String
+  ruleName          String
+  ruleTextOriginal  String
+  ruleTextEs        String?
+  category          String?
+  isKeyRule         Boolean   @default(false)
+  keyRuleType       String?
+  aiExplanation     String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  subreddit         Subreddit @relation(fields: [subredditId], references: [id], onDelete: Cascade)
+
+  @@map("rules")
+}
+
+model Favorite {
+  id          String    @id @default(cuid())
+  subredditId String
+  note        String?
+  tags        String?
+  createdAt   DateTime  @default(now())
+  subreddit   Subreddit @relation(fields: [subredditId], references: [id], onDelete: Cascade)
+
+  @@map("favorites")
+}
+
+model Trend {
+  id                String    @id @default(cuid())
+  subredditId       String
+  fetishName        String
+  category          String?
+  growthPercent     Float     @default(0)
+  memberCount       Int       @default(0)
+  opportunityScore  Int       @default(0)
+  competitionLevel  String    @default("unknown")
+  isEmerging        Boolean   @default(false)
+  weekDetected      String?
+  createdAt         DateTime  @default(now())
+  subreddit         Subreddit @relation(fields: [subredditId], references: [id], onDelete: Cascade)
+
+  @@map("trends")
+}
