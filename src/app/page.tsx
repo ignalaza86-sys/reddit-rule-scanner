@@ -141,6 +141,7 @@ export default function Home() {
   const [isLoadingRules, setIsLoadingRules] = useState(false);
   const [expandedRule, setExpandedRule] = useState<string | null>(null);
   const [isEstimatedRules, setIsEstimatedRules] = useState(false);
+  const [loadingStep, setLoadingStep] = useState(0); // 0=fetching, 1=analyzing, 2=translating
   
   // Trends state
   const [trends, setTrends] = useState<TrendItem[]>([]);
@@ -151,16 +152,65 @@ export default function Home() {
   const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
   const [isLoadingFavorites, setIsLoadingFavorites] = useState(false);
 
+  // Load rules for a subreddit (defined BEFORE handleSearch since it's used by it)
+  const handleLoadRules = useCallback(async (sub: Subreddit) => {
+    setSelectedSub(sub);
+    setIsLoadingRules(true);
+    setRules([]);
+    setSummaryEs('');
+    setExpandedRule(null);
+    setIsEstimatedRules(false);
+    setLoadingStep(0);
+    setActiveTab('rules');
+
+    // Animate loading steps
+    const step1Timer = setTimeout(() => setLoadingStep(1), 2000);
+    const step2Timer = setTimeout(() => setLoadingStep(2), 5000);
+
+    try {
+      const res = await fetch(`/api/subreddit/rules?subreddit=${encodeURIComponent(sub.name)}`);
+      clearTimeout(step1Timer);
+      clearTimeout(step2Timer);
+      
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      
+      const data = await res.json();
+      if (data.rules && data.rules.length > 0) {
+        setRules(data.rules);
+        setSummaryEs(data.summaryEs || '');
+        // If subscribers is 0 and we got rules, they were AI-generated
+        const isEstimated = (data.subreddit?.subscribers === 0 || data.subreddit?.subscribers == null) && data.rules.length > 0;
+        setIsEstimatedRules(isEstimated);
+        if (data.subreddit) {
+          setSelectedSub(prev => ({ ...prev, ...data.subreddit }));
+        }
+        if (isEstimated) {
+          toast.success(`Reglas de r/${sub.name} generadas por IA — verificá las oficiales en Reddit`);
+        } else {
+          toast.success(`Reglas de r/${sub.name} cargadas y traducidas`);
+        }
+      } else if (data.error) {
+        toast.error(data.error || 'Error al cargar reglas');
+      } else {
+        toast.error('No se encontraron reglas para este subreddit');
+      }
+    } catch (e) {
+      clearTimeout(step1Timer);
+      clearTimeout(step2Timer);
+      toast.error('Error de conexión al cargar reglas — intentá de nuevo');
+    } finally {
+      setIsLoadingRules(false);
+    }
+  }, []);
+
   // Search subreddits
   const handleSearch = useCallback(async () => {
     if (!searchQuery.trim()) return;
 
     // Detect direct subreddit input: "r/feet", "/r/feet", "r/feet/" etc.
     const directMatch = searchQuery.trim().match(/^\/?r\/([a-zA-Z0-9_]+)\/?$/);
-    const cleanQuery = searchQuery.trim().toLowerCase();
-
-    // Check if it looks like a direct subreddit name (single word, no spaces)
-    const isDirectSubreddit = directMatch || /^[a-zA-Z0-9_]+$/.test(cleanQuery);
 
     // If it's a direct r/name format, go straight to rules
     if (directMatch) {
@@ -176,15 +226,29 @@ export default function Home() {
       const data = await res.json();
       if (data.subreddits) {
         setSearchResults(data.subreddits);
-        // If it's a single word (potential subreddit name) and we find an exact match in results, highlight it
-        if (isDirectSubreddit && data.subreddits.length > 0) {
+        
+        const cleanQuery = searchQuery.trim().toLowerCase();
+        const isSingleWord = /^[a-zA-Z0-9_]+$/.test(cleanQuery);
+        
+        // If it's a single word (potential subreddit name) and we find an exact match, auto-load it
+        if (isSingleWord && data.subreddits.length > 0) {
           const exactMatch = data.subreddits.find((s: Subreddit) => s.name.toLowerCase() === cleanQuery);
           if (exactMatch) {
-            toast.success(`Encontré r/${exactMatch.name} — hacé clic para ver sus reglas`);
+            // Auto-load rules for exact match
+            toast.success(`Encontré r/${exactMatch.name} — cargando reglas...`);
+            handleLoadRules(exactMatch);
+            return;
+          }
+          // If first result has priority 0 (added by search as unknown sub), auto-load it too
+          if (data.subreddits[0]?.subscribers === 0) {
+            toast.info(`Cargando r/${cleanQuery} con IA...`);
+            handleLoadRules(data.subreddits[0]);
+            return;
           }
         }
+        
         if (data.subreddits.length === 0) {
-          toast.info('No se encontraron comunidades para esa búsqueda');
+          toast.info('No se encontraron comunidades — probá con otra palabra');
         }
       } else {
         toast.error('Error al buscar comunidades');
@@ -194,43 +258,7 @@ export default function Home() {
     } finally {
       setIsSearching(false);
     }
-  }, [searchQuery]);
-
-  // Load rules for a subreddit
-  const handleLoadRules = useCallback(async (sub: Subreddit) => {
-    setSelectedSub(sub);
-    setIsLoadingRules(true);
-    setRules([]);
-    setSummaryEs('');
-    setExpandedRule(null);
-    setIsEstimatedRules(false);
-    setActiveTab('rules');
-    try {
-      const res = await fetch(`/api/subreddit/rules?subreddit=${encodeURIComponent(sub.name)}`);
-      const data = await res.json();
-      if (data.rules) {
-        setRules(data.rules);
-        setSummaryEs(data.summaryEs || '');
-        // If subscribers is 0 and we got rules, they were AI-generated
-        const isEstimated = (data.subreddit?.subscribers === 0 || data.subreddit?.subscribers == null) && data.rules.length > 0;
-        setIsEstimatedRules(isEstimated);
-        if (data.subreddit) {
-          setSelectedSub(prev => ({ ...prev, ...data.subreddit }));
-        }
-        if (isEstimated) {
-          toast.success(`Reglas de r/${sub.name} generadas por IA — verificá las oficiales en Reddit`);
-        } else {
-          toast.success(`Reglas de r/${sub.name} cargadas y traducidas`);
-        }
-      } else {
-        toast.error(data.error || 'Error al cargar reglas');
-      }
-    } catch (e) {
-      toast.error('Error de conexión al cargar reglas');
-    } finally {
-      setIsLoadingRules(false);
-    }
-  }, []);
+  }, [searchQuery, handleLoadRules]);
 
   // Load trends
   const handleLoadTrends = useCallback(async (category?: string) => {
@@ -522,11 +550,40 @@ export default function Home() {
             {/* ===== RULES TAB ===== */}
             <TabsContent value="rules">
               {isLoadingRules && (
-                <div className="flex flex-col items-center justify-center py-16 gap-3">
-                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                  <div className="text-center">
-                    <p className="text-sm font-medium">Analizando reglas de r/{selectedSub?.name}...</p>
-                    <p className="text-xs text-muted-foreground mt-1">La IA está traduciendo y clasificando las reglas</p>
+                <div className="flex flex-col items-center justify-center py-16 gap-4">
+                  <div className="relative">
+                    <Loader2 className="w-12 h-12 animate-spin text-primary" />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <Sparkles className="w-5 h-5 text-primary animate-pulse" />
+                    </div>
+                  </div>
+                  <div className="text-center space-y-2">
+                    <p className="text-base font-semibold text-foreground">
+                      Cargando r/{selectedSub?.name}
+                    </p>
+                    <div className="space-y-1">
+                      <motion.p
+                        key={loadingStep}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="text-sm text-muted-foreground"
+                      >
+                        {loadingStep === 0 && '🔍 Conectando con Reddit...'}
+                        {loadingStep === 1 && '🤖 La IA está analizando las reglas...'}
+                        {loadingStep === 2 && '🌐 Traduciendo reglas al español...'}
+                      </motion.p>
+                      <p className="text-xs text-muted-foreground/60">
+                        Puede tardar unos segundos si es la primera vez que se carga este subreddit
+                      </p>
+                    </div>
+                  </div>
+                  <div className="w-64 h-1.5 bg-muted rounded-full overflow-hidden">
+                    <motion.div
+                      className="h-full bg-primary rounded-full"
+                      initial={{ width: '10%' }}
+                      animate={{ width: loadingStep === 0 ? '30%' : loadingStep === 1 ? '60%' : '85%' }}
+                      transition={{ duration: 1, ease: 'easeOut' }}
+                    />
                   </div>
                 </div>
               )}
