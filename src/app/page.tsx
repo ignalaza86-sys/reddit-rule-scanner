@@ -140,6 +140,7 @@ export default function Home() {
   const [summaryEs, setSummaryEs] = useState('');
   const [isLoadingRules, setIsLoadingRules] = useState(false);
   const [expandedRule, setExpandedRule] = useState<string | null>(null);
+  const [isEstimatedRules, setIsEstimatedRules] = useState(false);
   
   // Trends state
   const [trends, setTrends] = useState<TrendItem[]>([]);
@@ -202,6 +203,7 @@ export default function Home() {
     setRules([]);
     setSummaryEs('');
     setExpandedRule(null);
+    setIsEstimatedRules(false);
     setActiveTab('rules');
     try {
       const res = await fetch(`/api/subreddit/rules?subreddit=${encodeURIComponent(sub.name)}`);
@@ -209,10 +211,17 @@ export default function Home() {
       if (data.rules) {
         setRules(data.rules);
         setSummaryEs(data.summaryEs || '');
+        // If subscribers is 0 and we got rules, they were AI-generated
+        const isEstimated = (data.subreddit?.subscribers === 0 || data.subreddit?.subscribers == null) && data.rules.length > 0;
+        setIsEstimatedRules(isEstimated);
         if (data.subreddit) {
           setSelectedSub(prev => ({ ...prev, ...data.subreddit }));
         }
-        toast.success(`Reglas de r/${sub.name} cargadas y traducidas`);
+        if (isEstimated) {
+          toast.success(`Reglas de r/${sub.name} generadas por IA — verificá las oficiales en Reddit`);
+        } else {
+          toast.success(`Reglas de r/${sub.name} cargadas y traducidas`);
+        }
       } else {
         toast.error(data.error || 'Error al cargar reglas');
       }
@@ -569,6 +578,14 @@ export default function Home() {
                               <p className="text-sm text-foreground/90 flex items-start gap-2">
                                 <Sparkles className="w-4 h-4 text-primary shrink-0 mt-0.5" />
                                 {summaryEs}
+                              </p>
+                            </div>
+                          )}
+                          {isEstimatedRules && (
+                            <div className="mt-2 p-3 rounded-lg bg-amber-500/5 border border-amber-500/20">
+                              <p className="text-xs text-amber-400 flex items-start gap-2">
+                                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                                Estas reglas fueron generadas por IA basándose en el nombre del subreddit y reglas de comunidades similares. Verificá las reglas oficiales directamente en Reddit antes de postear.
                               </p>
                             </div>
                           )}

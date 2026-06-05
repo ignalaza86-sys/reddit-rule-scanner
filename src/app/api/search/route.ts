@@ -181,6 +181,20 @@ function searchSubreddits(query: string, limit: number) {
     return b.subscribers - a.subscribers;
   });
 
+  // IMPORTANT: If the query is a specific subreddit name (not found in our data),
+  // always add it as a result so the user can click and load its rules
+  if (/^[a-zA-Z0-9_]+$/.test(cleanQ) && !seen.has(cleanQ)) {
+    results.unshift({
+      name: cleanQ,
+      displayName: `r/${cleanQ}`,
+      description: `Subreddit r/${cleanQ} — hacé clic para cargar y traducir sus reglas con IA.`,
+      subscribers: 0,
+      over18: true,
+      priority: 0, // Show first
+      niches: [],
+    });
+  }
+
   return results.slice(0, limit).map(({ priority, niches, ...sub }) => ({
     ...sub,
     url: `https://reddit.com/r/${sub.name}`,

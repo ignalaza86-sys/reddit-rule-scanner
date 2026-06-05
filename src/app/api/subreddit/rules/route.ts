@@ -207,10 +207,18 @@ export async function GET(request: NextRequest) {
         }
       }
       
-      if (!demoKey) demoKey = 'default';
-      const demo = DEMO_RULES[demoKey];
-      subData = { ...demo.about, display_name: subreddit };
-      rawRules = demo.rules;
+      if (demoKey) {
+        // We have demo rules for this subreddit or a similar one
+        const demo = DEMO_RULES[demoKey];
+        subData = { ...demo.about, display_name: subreddit };
+        rawRules = demo.rules;
+      } else {
+        // NO demo rules - let the AI generate rules based on the subreddit name
+        // This is the key fix: ANY subreddit should get rules, even unknown ones
+        subData = { title: `r/${subreddit}`, subscribers: 0, over18: true, public_description: `Community r/${subreddit} on Reddit.` };
+        // We'll pass empty rawRules and let the AI handle it entirely
+        rawRules = [];
+      }
     }
 
     // Extract rules
@@ -223,11 +231,15 @@ export async function GET(request: NextRequest) {
     // Use AI to translate and analyze rules
     const zai = await ZAI.create();
     
-    const rulesText = extractedRules
-      .map((r: any, i: number) => `Rule ${i + 1}: "${r.name}"\n${r.textOriginal}`)
-      .join('\n\n---\n\n');
+    let aiPrompt: string;
+    
+    if (extractedRules.length > 0) {
+      // We have actual rules to translate
+      const rulesText = extractedRules
+        .map((r: any, i: number) => `Rule ${i + 1}: "${r.name}"\n${r.textOriginal}`)
+        .join('\n\n---\n\n');
 
-    const aiPrompt = `Sos un experto en Reddit y creadores de contenido de OnlyFans. Analizá las siguientes reglas de un subreddit y:
+      aiPrompt = `Sos un experto en Reddit y creadores de contenido de OnlyFans. Analizá las siguientes reglas de un subreddit y:
 
 1. Traducí cada regla al español rioplatense/argentino de forma precisa y natural, entendiendo la jerga de Reddit y creadores de contenido.
 2. Identificá cuáles son "reglas clave" para un creador de OnlyFans que quiere promocionarse:
@@ -260,6 +272,43 @@ Respondé SOLO en formato JSON así:
   "promoDays": "días permitidos o null",
   "summaryEs": "resumen general en 2-3 oraciones sobre si conviene o no este sub para un creador de OF"
 }`;
+    } else {
+      // No rules available - AI must generate them based on subreddit name and niche knowledge
+      aiPrompt = `Sos un experto en Reddit y creadores de contenido de OnlyFans. Un usuario quiere conocer las reglas del subreddit r/${subreddit}, pero no pudimos obtener las reglas oficiales de Reddit.
+
+Basándote en tu conocimiento de Reddit y cómo funcionan las comunidades de contenido adulto/fetiches, GENERÁ las reglas más probables que tendría r/${subreddit}. Considerá:
+
+1. El nombre del subreddit sugiere qué tipo de contenido es
+2. Las comunidades similares en Reddit suelen tener reglas parecidas
+3. Los subreddits NSFW suelen tener reglas sobre verificación, promoción, y límites de posts
+4. Generá entre 6 y 12 reglas realistas y útiles
+
+Para cada regla:
+- Nombre de la regla en inglés (como aparecería en Reddit)
+- Descripción detallada en inglés de lo que dice la regla
+- Traducción al español rioplatense
+- Si es una regla clave para creadores de OnlyFans (promo, verificación, límites)
+- Explicación corta para creadores de contenido
+
+Respondé SOLO en formato JSON así:
+{
+  "rules": [
+    {
+      "name": "nombre de la regla en inglés",
+      "textOriginal": "descripción completa en inglés de la regla",
+      "textEs": "traducción al español rioplatense",
+      "isKeyRule": true/false,
+      "keyRuleType": "promo" | "verification" | "post_limit" | "restricted_days" | "flair" | "title_format" | "other",
+      "aiExplanation": "explicación corta para creador de contenido"
+    }
+  ],
+  "allowPromo": true/false/null,
+  "requiresVerify": true/false/null,
+  "postLimit": "descripción del límite o null",
+  "promoDays": "días permitidos o null",
+  "summaryEs": "resumen general en 2-3 oraciones sobre si conviene o no este sub para un creador de OF. Aclará que estas son reglas estimadas y que deberían verificar las oficiales en Reddit."
+}`;
+    }
 
     const completion = await zai.chat.completions.create({
       messages: [
@@ -309,7 +358,7 @@ Respondé SOLO en formato JSON así:
           data: {
             subredditId: savedSub.id,
             ruleName: rule.name || 'Regla',
-            ruleTextOriginal: matchingRaw?.textOriginal || '',
+            ruleTextOriginal: matchingRaw?.textOriginal || rule.textOriginal || '',
             ruleTextEs: rule.textEs || '',
             category: rule.keyRuleType || null,
             isKeyRule: rule.isKeyRule || false,
