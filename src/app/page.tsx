@@ -153,12 +153,35 @@ export default function Home() {
   // Search subreddits
   const handleSearch = useCallback(async () => {
     if (!searchQuery.trim()) return;
+
+    // Detect direct subreddit input: "r/feet", "/r/feet", "r/feet/" etc.
+    const directMatch = searchQuery.trim().match(/^\/?r\/([a-zA-Z0-9_]+)\/?$/);
+    const cleanQuery = searchQuery.trim().toLowerCase();
+
+    // Check if it looks like a direct subreddit name (single word, no spaces)
+    const isDirectSubreddit = directMatch || /^[a-zA-Z0-9_]+$/.test(cleanQuery);
+
+    // If it's a direct r/name format, go straight to rules
+    if (directMatch) {
+      const subName = directMatch[1];
+      toast.info(`Cargando r/${subName} directo...`);
+      handleLoadRules({ name: subName } as Subreddit);
+      return;
+    }
+
     setIsSearching(true);
     try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}`);
+      const res = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}&limit=30`);
       const data = await res.json();
       if (data.subreddits) {
         setSearchResults(data.subreddits);
+        // If it's a single word (potential subreddit name) and we find an exact match in results, highlight it
+        if (isDirectSubreddit && data.subreddits.length > 0) {
+          const exactMatch = data.subreddits.find((s: Subreddit) => s.name.toLowerCase() === cleanQuery);
+          if (exactMatch) {
+            toast.success(`Encontré r/${exactMatch.name} — hacé clic para ver sus reglas`);
+          }
+        }
         if (data.subreddits.length === 0) {
           toast.info('No se encontraron comunidades para esa búsqueda');
         }
@@ -325,7 +348,7 @@ export default function Home() {
                   <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
-                      placeholder="Buscá un fetiche o nicho... (ej: feet, findom, cosplay)"
+                      placeholder="Buscá un nicho o ingresá r/subreddit directo... (ej: feet, r/findom, cosplay)"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
@@ -348,7 +371,7 @@ export default function Home() {
 
                 {/* Quick Tags */}
                 <div className="flex flex-wrap gap-2">
-                  {['feet', 'findom', 'cosplay', 'ASMR', 'femdom', 'lingerie', 'roleplay', 'latex', 'bondage'].map(tag => (
+                  {['feet', 'findom', 'cosplay', 'ASMR', 'femdom', 'lingerie', 'roleplay', 'latex', 'bondage', 'JOI', 'chastity', 'BBW', 'thick', 'smoking', 'goth', 'hotwife', 'OnlyFans'].map(tag => (
                     <Badge
                       key={tag}
                       variant="outline"
