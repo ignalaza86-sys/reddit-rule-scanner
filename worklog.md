@@ -23,3 +23,27 @@ Stage Summary:
 - App never crashes — every endpoint has fallback responses
 - Pre-built Spanish rules for top 5 subreddits (feet, findom, OnlyFansPromotions, femdom, cosplay) — no AI call needed
 - 15 trend items available instantly without any external API calls
+
+---
+Task ID: 2
+Agent: Main Agent
+Task: Migrate from SQLite to PostgreSQL (Supabase) and prepare for Vercel deployment
+
+Work Log:
+- Updated prisma/schema.prisma: Changed provider from "sqlite" to "postgresql", added directUrl for Supabase connection pooling
+- Updated .env: Replaced SQLite DATABASE_URL with Supabase PostgreSQL placeholders (DATABASE_URL for pooler, DIRECT_URL for migrations)
+- Created .env.example: Template for deployment reference
+- Updated .gitignore: Proper env file handling, added /db/ directory, keeps .env.example
+- Created vercel.json: Build config with prisma generate, bun install, gru1 region
+- Updated package.json: Added postinstall (prisma generate), db:migrate:deploy script, build includes prisma generate
+- Verified Prisma schema validates with PostgreSQL provider
+- Verified next build compiles successfully with PostgreSQL
+- Verified cache.ts is integrated into all API routes (search, rules, trends)
+- Verified auth.ts has API routes at /api/auth and /api/usage
+- Seed file already has 30+ subreddits with pre-translated Spanish rules
+
+Stage Summary:
+- Project fully migrated to PostgreSQL schema (ready for Supabase)
+- Build compiles successfully
+- Waiting for user to provide Supabase connection strings (DATABASE_URL + DIRECT_URL)
+- Next steps: Push schema to Supabase, seed data, create GitHub repo, deploy to Vercel
