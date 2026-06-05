@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ALL_SUBREDDITS } from '@/lib/demo-subreddits';
 
+function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 5000): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timer));
+}
+
 function searchSubreddits(query: string, limit: number) {
   const q = query.toLowerCase().trim();
   const cleanQ = q.replace(/^\/?r\/+/, '');
@@ -90,14 +96,14 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Try Reddit API
+    // Try Reddit API with short timeout (5s max)
     const redditUrl = `https://www.reddit.com/subreddits/search.json?q=${encodeURIComponent(query)}&limit=${limit}&sort=relevance`;
-    const response = await fetch(redditUrl, {
+    const response = await fetchWithTimeout(redditUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/121.0.0.0',
         'Accept': 'application/json',
       },
-    });
+    }, 5000);
 
     if (response.ok) {
       const data = await response.json();
@@ -123,6 +129,7 @@ export async function GET(request: NextRequest) {
     const demoResults = searchSubreddits(query, limit);
     return NextResponse.json({ subreddits: demoResults, total: demoResults.length, source: 'demo' });
   } catch (error: any) {
+    // Any error (timeout, network, etc.) — fall back to demo data instantly
     const demoResults = searchSubreddits(query, limit);
     return NextResponse.json({ subreddits: demoResults, total: demoResults.length, source: 'demo' });
   }

@@ -8,14 +8,10 @@ export async function GET() {
       include: { subreddit: { include: { rules: true } } },
       orderBy: { createdAt: 'desc' },
     });
-
     return NextResponse.json({ favorites });
   } catch (error: any) {
     console.error('Favorites GET error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch favorites', details: error.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ favorites: [] });
   }
 }
 
@@ -29,13 +25,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'subredditId is required' }, { status: 400 });
     }
 
-    // Check if already favorited
-    const existing = await db.favorite.findFirst({
-      where: { subredditId },
-    });
-
+    const existing = await db.favorite.findFirst({ where: { subredditId } });
     if (existing) {
-      // Update note/tags
       const updated = await db.favorite.update({
         where: { id: existing.id },
         data: { note: note || existing.note, tags: tags || existing.tags },
@@ -46,14 +37,10 @@ export async function POST(request: NextRequest) {
     const favorite = await db.favorite.create({
       data: { subredditId, note: note || '', tags: tags || '' },
     });
-
     return NextResponse.json({ favorite, wasUpdate: false });
   } catch (error: any) {
     console.error('Favorites POST error:', error);
-    return NextResponse.json(
-      { error: 'Failed to add favorite', details: error.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to add favorite' });
   }
 }
 
@@ -77,9 +64,6 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('Favorites DELETE error:', error);
-    return NextResponse.json(
-      { error: 'Failed to remove favorite', details: error.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to remove favorite' });
   }
 }
