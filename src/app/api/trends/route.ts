@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { cache, CACHE_TTL } from '@/lib/cache';
 
 // Demo trend data - always available instantly
 const DEMO_TRENDS = [
@@ -26,6 +27,13 @@ export async function GET(request: NextRequest) {
   const limit = parseInt(searchParams.get('limit') || '12');
 
   try {
+    // Check memory cache first (fastest path)
+    const cacheKey = `trends:${category || 'all'}:${limit}`;
+    const cachedResult = cache.get<{ trends: any[]; cached: boolean }>(cacheKey);
+    if (cachedResult) {
+      return NextResponse.json({ ...cachedResult, source: 'cache' });
+    }
+
     // 1. Check cached trends first (fast path)
     try {
       const cachedTrends = await db.trend.findMany({
@@ -39,7 +47,9 @@ export async function GET(request: NextRequest) {
       });
 
       if (cachedTrends.length > 0) {
-        return NextResponse.json({ trends: cachedTrends, cached: true });
+        const dbResult = { trends: cachedTrends, cached: true };
+        cache.set(cacheKey, dbResult, CACHE_TTL.trends);
+        return NextResponse.json(dbResult);
       }
     } catch (dbErr) {
       console.error('DB read error (non-fatal):', dbErr);

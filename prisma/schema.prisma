@@ -19,6 +19,7 @@ model Subreddit {
   postLimit         String?
   promoDays         String?
   iconUrl           String?
+  summaryEs         String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
   rules             Rule[]
@@ -71,4 +72,29 @@ model Trend {
   subreddit         Subreddit @relation(fields: [subredditId], references: [id], onDelete: Cascade)
 
   @@map("trends")
+}
+
+model User {
+  id               String   @id @default(cuid())
+  anonId           String   @unique
+  email            String?  @unique
+  name             String?
+  plan             String   @default("free")
+  stripeCustomerId String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  usage            Usage[]
+
+  @@map("users")
+}
+
+model Usage {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String
+  detail    String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("usage")
 }

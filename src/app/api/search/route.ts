@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ALL_SUBREDDITS } from '@/lib/demo-subreddits';
+import { cache, CACHE_TTL } from '@/lib/cache';
 
 function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 5000): Promise<Response> {
   const controller = new AbortController();
@@ -96,6 +97,13 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    // Check memory cache first
+    const cacheKey = `search:${query}:${limit}`;
+    const cached = cache.get<{ subreddits: any[]; total: number; source: string }>(cacheKey);
+    if (cached) {
+      return NextResponse.json({ ...cached, source: 'cache' });
+    }
+
     // Try Reddit API with short timeout (5s max)
     const redditUrl = `https://www.reddit.com/subreddits/search.json?q=${encodeURIComponent(query)}&limit=${limit}&sort=relevance`;
     const response = await fetchWithTimeout(redditUrl, {
@@ -122,15 +130,22 @@ export async function GET(request: NextRequest) {
           };
         })
         .sort((a: any, b: any) => b.subscribers - a.subscribers);
-      return NextResponse.json({ subreddits, total: subreddits.length, source: 'reddit' });
+      const result = { subreddits, total: subreddits.length, source: 'reddit' };
+      cache.set(cacheKey, result, CACHE_TTL.search);
+      return NextResponse.json(result);
     }
 
     // Reddit blocked — use demo data
     const demoResults = searchSubreddits(query, limit);
-    return NextResponse.json({ subreddits: demoResults, total: demoResults.length, source: 'demo' });
+    const result = { subreddits: demoResults, total: demoResults.length, source: 'demo' };
+    cache.set(cacheKey, result, CACHE_TTL.search);
+    return NextResponse.json(result);
   } catch (error: any) {
     // Any error (timeout, network, etc.) — fall back to demo data instantly
     const demoResults = searchSubreddits(query, limit);
-    return NextResponse.json({ subreddits: demoResults, total: demoResults.length, source: 'demo' });
+    const cacheKey = `search:${query}:${limit}`;
+    const result = { subreddits: demoResults, total: demoResults.length, source: 'demo' };
+    cache.set(cacheKey, result, CACHE_TTL.search);
+    return NextResponse.json(result);
   }
 }

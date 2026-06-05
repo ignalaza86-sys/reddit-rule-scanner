@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { cache, CACHE_TTL } from '@/lib/cache';
 
 // Timeout wrapper for fetch calls
 function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 6000): Promise<Response> {
@@ -120,6 +121,13 @@ export async function GET(request: NextRequest) {
   const subLower = subreddit.toLowerCase();
 
   try {
+    // 0. Check memory cache first (fastest path)
+    const cacheKey = `rules:${subLower}`;
+    const cachedResult = cache.get<{ subreddit: any; rules: any[]; summaryEs?: string; cached: boolean }>(cacheKey);
+    if (cachedResult) {
+      return NextResponse.json({ ...cachedResult, source: 'cache' });
+    }
+
     // 1. Check DB cache first (fast path)
     try {
       const existingSub = await db.subreddit.findUnique({
@@ -129,7 +137,9 @@ export async function GET(request: NextRequest) {
       if (existingSub && existingSub.rules.length > 0) {
         const cacheAge = Date.now() - existingSub.updatedAt.getTime();
         if (cacheAge < 24 * 60 * 60 * 1000) {
-          return NextResponse.json({ subreddit: existingSub, rules: existingSub.rules, cached: true });
+          const dbResult = { subreddit: existingSub, rules: existingSub.rules, cached: true };
+          cache.set(cacheKey, dbResult, CACHE_TTL.rules);
+          return NextResponse.json(dbResult);
         }
       }
     } catch (dbErr) {
