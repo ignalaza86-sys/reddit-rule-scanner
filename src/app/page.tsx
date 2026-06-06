@@ -497,7 +497,18 @@ export default function Home() {
                               </div>
 
                               {/* Actions */}
-                              <div className="flex items-center gap-2 shrink-0">
+                              <div className="flex items-center gap-1 shrink-0">
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+                                      <a href={`https://reddit.com/r/${sub.name}`} target="_blank" rel="noopener noreferrer"
+                                        onClick={(e) => e.stopPropagation()}>
+                                        <ExternalLink className="w-4 h-4 text-orange-400 hover:text-orange-300" />
+                                      </a>
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Abrir en Reddit</TooltipContent>
+                                </Tooltip>
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <Button
@@ -926,18 +937,33 @@ export default function Home() {
                                 </div>
                               </div>
 
-                              {/* Action */}
-                              {trend.subredditName && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="w-full gap-2 text-xs"
-                                  onClick={() => handleLoadRules({ name: trend.subredditName! } as Subreddit)}
-                                >
-                                  <Shield className="w-3 h-3" />
-                                  Ver reglas de r/{trend.subredditName}
-                                </Button>
-                              )}
+                              {/* Actions */}
+                              <div className="flex gap-2">
+                                {trend.subredditName && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="flex-1 gap-2 text-xs"
+                                    onClick={() => handleLoadRules({ name: trend.subredditName! } as Subreddit)}
+                                  >
+                                    <Shield className="w-3 h-3" />
+                                    Ver reglas
+                                  </Button>
+                                )}
+                                {trend.subredditName && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="gap-2 text-xs border-orange-500/30 text-orange-400 hover:bg-orange-500/10"
+                                    asChild
+                                  >
+                                    <a href={`https://reddit.com/r/${trend.subredditName}`} target="_blank" rel="noopener noreferrer">
+                                      <ExternalLink className="w-3 h-3" />
+                                      Reddit
+                                    </a>
+                                  </Button>
+                                )}
+                              </div>
                             </CardContent>
                           </Card>
                         </motion.div>
@@ -1010,6 +1036,16 @@ export default function Home() {
                             </p>
                           </div>
                           <div className="flex gap-2 shrink-0">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="gap-1 text-xs border-orange-500/30 text-orange-400 hover:bg-orange-500/10"
+                              asChild
+                            >
+                              <a href={`https://reddit.com/r/${fav.subreddit.name}`} target="_blank" rel="noopener noreferrer">
+                                <ExternalLink className="w-3 h-3" /> Reddit
+                              </a>
+                            </Button>
                             <Button
                               variant="outline"
                               size="sm"

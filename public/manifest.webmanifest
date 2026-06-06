@@ -1,0 +1,28 @@
+{
+  "name": "Reddit Rule Scanner",
+  "short_name": "RRScanner",
+  "description": "Escaneá, traducí y analizá las reglas de subreddits con IA. Descubrí fetiches emergentes y encontrá las mejores comunidades para promocionar tu contenido.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f0f1a",
+  "theme_color": "#c98a1a",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["productivity", "utilities"],
+  "lang": "es",
+  "dir": "ltr"
+}
