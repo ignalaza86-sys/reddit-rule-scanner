@@ -67,18 +67,8 @@ function searchSubreddits(query: string, limit: number) {
     return b.subscribers - a.subscribers;
   });
 
-  // If the query is a specific subreddit name not in our data, add it
-  if (/^[a-zA-Z0-9_]+$/.test(cleanQ) && !seen.has(cleanQ)) {
-    results.unshift({
-      name: cleanQ,
-      displayName: `r/${cleanQ}`,
-      description: `Subreddit r/${cleanQ} — hacé clic para cargar y traducir sus reglas con IA.`,
-      subscribers: 0,
-      over18: true,
-      priority: 0,
-      niches: [],
-    });
-  }
+  // If the query is a specific subreddit name not in our data, DON'T add a fake 0-member entry
+  // The Reddit API will handle it, and the rules endpoint will try to fetch real data
 
   return results.slice(0, limit).map(({ priority, niches, ...sub }: any) => ({
     ...sub,
@@ -96,6 +86,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Query parameter "q" is required' }, { status: 400 });
   }
 
+  const cleanQ = query.toLowerCase().trim().replace(/^\/?r\/+/, '');
+
   try {
     // Check memory cache first
     const cacheKey = `search:${query}:${limit}`;
@@ -105,7 +97,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Try Reddit API with short timeout (5s max)
-    const redditUrl = `https://www.reddit.com/subreddits/search.json?q=${encodeURIComponent(query)}&limit=${limit}&sort=relevance`;
+    const redditUrl = `https://www.reddit.com/subreddits/search.json?q=${encodeURIComponent(query)}&limit=${limit}&sort=relevance&include_over_18=on`;
     const response = await fetchWithTimeout(redditUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/121.0.0.0',
@@ -115,7 +107,7 @@ export async function GET(request: NextRequest) {
 
     if (response.ok) {
       const data = await response.json();
-      const subreddits = data.data.children
+      const redditSubs = data.data.children
         .filter((child: any) => child.kind === 't5')
         .map((child: any) => {
           const sr = child.data;
@@ -130,18 +122,66 @@ export async function GET(request: NextRequest) {
           };
         })
         .sort((a: any, b: any) => b.subscribers - a.subscribers);
-      const result = { subreddits, total: subreddits.length, source: 'reddit' };
+
+      // Merge with demo data: add demo results that Reddit didn't return
+      const demoResults = searchSubreddits(query, limit);
+      const redditNames = new Set(redditSubs.map((s: any) => s.name.toLowerCase()));
+      const extraDemo = demoResults.filter((s: any) => !redditNames.has(s.name.toLowerCase()));
+
+      const merged = [...redditSubs, ...extraDemo].slice(0, limit);
+      const result = { subreddits: merged, total: merged.length, source: 'reddit+demo' };
       cache.set(cacheKey, result, CACHE_TTL.search);
       return NextResponse.json(result);
     }
 
-    // Reddit blocked — use demo data
+    // Reddit blocked — try fetching specific subreddit info directly
+    if (/^[a-zA-Z0-9_]+$/.test(cleanQ)) {
+      try {
+        const aboutRes = await fetchWithTimeout(`https://www.reddit.com/r/${encodeURIComponent(cleanQ)}/about.json`, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/121.0.0.0',
+            'Accept': 'application/json',
+          },
+        }, 4000);
+
+        if (aboutRes.ok) {
+          const aboutData = await aboutRes.json();
+          const sr = aboutData.data;
+          if (sr && !sr.banned && !sr.quarantine) {
+            const directSub = {
+              name: sr.display_name,
+              displayName: sr.title,
+              description: sr.public_description || '',
+              subscribers: sr.subscribers || 0,
+              over18: sr.over18 || false,
+              iconUrl: sr.icon_img || sr.community_icon || null,
+              url: `https://reddit.com/r/${sr.display_name}`,
+            };
+
+            // Merge with demo results
+            const demoResults = searchSubreddits(query, limit);
+            const demoNames = new Set(demoResults.map((s: any) => s.name.toLowerCase()));
+            if (!demoNames.has(cleanQ.toLowerCase())) {
+              demoResults.unshift(directSub);
+            }
+
+            const result = { subreddits: demoResults.slice(0, limit), total: Math.min(demoResults.length, limit), source: 'reddit-direct+demo' };
+            cache.set(cacheKey, result, CACHE_TTL.search);
+            return NextResponse.json(result);
+          }
+        }
+      } catch (directErr) {
+        console.log('Direct subreddit fetch failed:', directErr instanceof Error ? directErr.message : 'unknown');
+      }
+    }
+
+    // Fallback: use demo data only
     const demoResults = searchSubreddits(query, limit);
     const result = { subreddits: demoResults, total: demoResults.length, source: 'demo' };
     cache.set(cacheKey, result, CACHE_TTL.search);
     return NextResponse.json(result);
   } catch (error: any) {
-    // Any error (timeout, network, etc.) — fall back to demo data instantly
+    // Any error — fall back to demo data instantly
     const demoResults = searchSubreddits(query, limit);
     const cacheKey = `search:${query}:${limit}`;
     const result = { subreddits: demoResults, total: demoResults.length, source: 'demo' };

@@ -2,23 +2,23 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { cache, CACHE_TTL } from '@/lib/cache';
 
-// Demo trend data - always available instantly
+// Demo trend data — ALL subreddits verified active 2025
 const DEMO_TRENDS = [
-  { fetishName: 'Feet ASMR', category: 'Feet + ASMR', growthPercent: 285, memberCount: 19000, competitionLevel: 'baja', opportunityScore: 92, isEmerging: true, subredditName: 'feetasmr' },
-  { fetishName: 'Sensory Deprivation', category: 'Bondage', growthPercent: 180, memberCount: 23000, competitionLevel: 'baja', opportunityScore: 88, isEmerging: true, subredditName: 'sensorydeprivation' },
-  { fetishName: 'Shoe Dangling', category: 'Feet', growthPercent: 165, memberCount: 28000, competitionLevel: 'baja', opportunityScore: 85, isEmerging: true, subredditName: 'shoedangling' },
-  { fetishName: 'Crypto Findom', category: 'Findom + Crypto', growthPercent: 220, memberCount: 18000, competitionLevel: 'media', opportunityScore: 78, isEmerging: true, subredditName: 'cryptofindom' },
-  { fetishName: 'Giantess POV', category: 'Roleplay', growthPercent: 145, memberCount: 34000, competitionLevel: 'media', opportunityScore: 74, isEmerging: true, subredditName: 'giantesspov' },
-  { fetishName: 'Mouth Sounds', category: 'ASMR', growthPercent: 130, memberCount: 45000, competitionLevel: 'media', opportunityScore: 71, isEmerging: true, subredditName: 'mouthsounds' },
-  { fetishName: 'Pedicure Content', category: 'Feet', growthPercent: 95, memberCount: 89000, competitionLevel: 'media', opportunityScore: 68, isEmerging: false, subredditName: 'paintedtoes' },
-  { fetishName: 'Cosplay Findom', category: 'Cosplay + Findom', growthPercent: 110, memberCount: 12000, competitionLevel: 'baja', opportunityScore: 82, isEmerging: true, subredditName: 'cosplayfindom' },
-  { fetishName: 'Smoking Fetish', category: 'Smoking', growthPercent: 88, memberCount: 78000, competitionLevel: 'alta', opportunityScore: 55, isEmerging: false, subredditName: 'smokingfetish' },
-  { fetishName: 'Yoga Pants Worship', category: 'Fitness', growthPercent: 75, memberCount: 567000, competitionLevel: 'alta', opportunityScore: 48, isEmerging: false, subredditName: 'girlsinyogapants' },
-  { fetishName: 'Body Paint', category: 'Art + NSFW', growthPercent: 120, memberCount: 45000, competitionLevel: 'baja', opportunityScore: 79, isEmerging: true, subredditName: 'bodypaint' },
-  { fetishName: 'Latex Fashion', category: 'Latex', growthPercent: 65, memberCount: 234000, competitionLevel: 'media', opportunityScore: 62, isEmerging: false, subredditName: 'latex' },
-  { fetishName: 'Chastity Tease', category: 'Femdom', growthPercent: 195, memberCount: 145000, competitionLevel: 'media', opportunityScore: 76, isEmerging: true, subredditName: 'chastity' },
-  { fetishName: 'Nail Fetish', category: 'Hands + Nails', growthPercent: 140, memberCount: 28000, competitionLevel: 'baja', opportunityScore: 80, isEmerging: true, subredditName: 'nailfetish' },
-  { fetishName: 'Hair Fetish', category: 'Hair', growthPercent: 88, memberCount: 34000, competitionLevel: 'baja', opportunityScore: 72, isEmerging: false, subredditName: 'hairfetish' },
+  { fetishName: 'Chastity Tease & Denial', category: 'Femdom + Chastity', growthPercent: 195, memberCount: 486000, competitionLevel: 'media', opportunityScore: 92, isEmerging: true, subredditName: 'chastity' },
+  { fetishName: 'Goth NSFW Content', category: 'Goth + Alt', growthPercent: 180, memberCount: 2679000, competitionLevel: 'media', opportunityScore: 88, isEmerging: true, subredditName: 'gothsluts' },
+  { fetishName: 'Hotwife Lifestyle', category: 'Hotwife', growthPercent: 165, memberCount: 1961000, competitionLevel: 'alta', opportunityScore: 75, isEmerging: false, subredditName: 'Hotwife' },
+  { fetishName: 'Verified Feet Content', category: 'Feet', growthPercent: 155, memberCount: 514000, competitionLevel: 'baja', opportunityScore: 85, isEmerging: true, subredditName: 'VerifiedFeet' },
+  { fetishName: 'Chastity Training', category: 'Femdom + Chastity', growthPercent: 150, memberCount: 143000, competitionLevel: 'baja', opportunityScore: 82, isEmerging: true, subredditName: 'chastitytraining' },
+  { fetishName: 'OnlyFans Promo Strategy', category: 'OnlyFans', growthPercent: 145, memberCount: 2924000, competitionLevel: 'alta', opportunityScore: 70, isEmerging: false, subredditName: 'OnlyFans101' },
+  { fetishName: 'Audio JOI & ASMR', category: 'ASMR + JOI', growthPercent: 130, memberCount: 2160000, competitionLevel: 'media', opportunityScore: 78, isEmerging: true, subredditName: 'GoneWildAudio' },
+  { fetishName: 'Smoking Fetish', category: 'Smoking', growthPercent: 88, memberCount: 150000, competitionLevel: 'baja', opportunityScore: 80, isEmerging: true, subredditName: 'smokingfetish' },
+  { fetishName: 'Latex Fetish', category: 'Latex', growthPercent: 75, memberCount: 137000, competitionLevel: 'baja', opportunityScore: 76, isEmerging: true, subredditName: 'latexfetish' },
+  { fetishName: 'BBW Creator Content', category: 'BBW', growthPercent: 70, memberCount: 1092000, competitionLevel: 'media', opportunityScore: 72, isEmerging: false, subredditName: 'BBW' },
+  { fetishName: 'NSFW Cosplay', category: 'Cosplay', growthPercent: 95, memberCount: 1677000, competitionLevel: 'alta', opportunityScore: 65, isEmerging: false, subredditName: 'nsfwcosplay' },
+  { fetishName: 'Financial Domination', category: 'Findom', growthPercent: 85, memberCount: 210000, competitionLevel: 'media', opportunityScore: 68, isEmerging: false, subredditName: 'findom' },
+  { fetishName: 'JOI Content', category: 'Femdom + JOI', growthPercent: 120, memberCount: 549000, competitionLevel: 'media', opportunityScore: 74, isEmerging: true, subredditName: 'joi' },
+  { fetishName: 'Cuckold & Hotwife', category: 'Hotwife + Cuckold', growthPercent: 90, memberCount: 2178000, competitionLevel: 'alta', opportunityScore: 60, isEmerging: false, subredditName: 'cuckold' },
+  { fetishName: 'Lingerie Showcase', category: 'Lingerie', growthPercent: 65, memberCount: 806000, competitionLevel: 'media', opportunityScore: 66, isEmerging: false, subredditName: 'lingerie' },
 ];
 
 export async function GET(request: NextRequest) {
