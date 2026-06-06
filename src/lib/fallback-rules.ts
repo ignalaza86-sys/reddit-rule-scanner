@@ -20,7 +20,7 @@ export interface FallbackResult {
 const NICHE_KEYWORDS: Record<string, string[]> = {
   feet: ['feet', 'foot', 'soles', 'toes', 'pedicure', 'footfetish', 'feetpics', 'footworship', 'feetjobs'],
   findom: ['findom', 'paypig', 'tribute', 'goddessworship', 'goddess'],
-  femdom: ['femdom', 'dominatrix', 'mistress', 'chastity', 'joi', 'edging', 'pegging'],
+  femdom: ['femdom', 'dominatrix', 'mistress', 'chastity', 'joi', 'edging', 'pegging', 'domme', 'dommes'],
   cosplay: ['cosplay', 'cosplayer'],
   asmr: ['asmr'],
   bondage: ['bondage', 'shibari', 'ropetied', 'bdsm', 'sensory'],
@@ -32,6 +32,7 @@ const NICHE_KEYWORDS: Record<string, string[]> = {
   onlyfans: ['onlyfans'],
   hotwife: ['hotwife', 'cuckold'],
   roleplay: ['roleplay', 'giantess'],
+  latina: ['latina', 'latinas', 'latin', 'español', 'mexicana', 'argentina', 'colombiana', 'dommeslatinas'],
 };
 
 const NICHE_RULES: Record<string, FallbackRule[]> = {
@@ -124,6 +125,15 @@ const NICHE_RULES: Record<string, FallbackRule[]> = {
     { short_name: 'Self-promo in comments only', description: 'OnlyFans links only in comments.', isKeyRule: true, keyRuleType: 'promo' },
     { short_name: 'Post limit: 2 per day', description: 'Maximum 2 posts per 24 hours.', isKeyRule: true, keyRuleType: 'post_limit' },
   ],
+  latina: [
+    { short_name: 'Content must feature Latinas', description: 'All content must feature Latina creators or Latina-themed content.', isKeyRule: false, keyRuleType: 'other' },
+    { short_name: 'Self-promo in comments only', description: 'OnlyFans and social media links ONLY in comments of your own posts.', isKeyRule: true, keyRuleType: 'promo' },
+    { short_name: 'Post limit: 1 per 24 hours', description: 'Maximum 1 post per 24-hour period.', isKeyRule: true, keyRuleType: 'post_limit' },
+    { short_name: 'Required flair', description: 'All posts must have appropriate flair: OC, Non-OC, etc.', isKeyRule: true, keyRuleType: 'flair' },
+    { short_name: 'Verification required for OC', description: 'Original content posters must be verified.', isKeyRule: true, keyRuleType: 'verification' },
+    { short_name: 'No catfishing', description: 'Use your real photos. Stolen content results in permanent ban.', isKeyRule: true, keyRuleType: 'verification' },
+    { short_name: 'Spanish or bilingual content welcome', description: 'Content in Spanish or bilingual (Spanish/English) is encouraged.', isKeyRule: false, keyRuleType: 'other' },
+  ],
   general: [
     { short_name: 'Self-promo rules vary', description: 'Check with moderators about self-promotion rules. Some allow it in comments, others ban it entirely. When in doubt, message the mods first.', isKeyRule: true, keyRuleType: 'promo' },
     { short_name: 'Post limit: check with mods', description: 'Most subreddits limit posting to 1-2 per day. Check the specific limits before posting.', isKeyRule: true, keyRuleType: 'post_limit' },
@@ -154,6 +164,7 @@ const NICHE_SUMMARIES: Record<string, string> = {
   onlyfans: 'Subreddit de promoción directa de OnlyFans. Se permite y se espera autopromoción. Verificación obligatoria. Ideal para conseguir suscriptores.',
   hotwife: 'Comunidad hotwife/cuckold. Autopromoción con flair. Requiere consentimiento de todas las partes.',
   roleplay: 'Comunidad de roleplay. Autopromoción en comentarios. Contenido debe involucrar escenarios de roleplay.',
+  latina: 'Comunidad Latina. Autopromoción solo en comentarios. Verificación requerida para OC. Excelente nicho para creadoras Latinas de OnlyFans. Contenido en español o bilingüe bienvenido.',
   general: 'Comunidad en Reddit. Las reglas de promoción varían — verificá con los moderadores. La mayoría de subreddits NSFW requieren verificación para OC.',
 };
 
@@ -206,6 +217,8 @@ const RULE_TRANSLATIONS: Record<string, { textEs: string; aiExplanation: string 
   'Safety tips encouraged': { textEs: 'Se anima a incluir tips de seguridad', aiExplanation: 'Cuando publiques contenido de shibari o suspensión, incluís advertencias y tips de seguridad.' },
   'No non-feet content': { textEs: 'No contenido que no sea de pies', aiExplanation: 'Los pies tienen que ser el foco principal. Fotos de cuerpo entero solo si los pies son claramente visibles.' },
   'Must be roleplay content': { textEs: 'Tiene que ser contenido de roleplay', aiExplanation: 'El contenido debe involucrar escenarios de roleplay o elementos de actuación.' },
+  'Content must feature Latinas': { textEs: 'El contenido debe mostrar Latinas', aiExplanation: 'Este es un espacio para la comunidad Latina. El contenido tiene que ser de personas que se identifican como Latinas.' },
+  'Spanish or bilingual content welcome': { textEs: 'Contenido en español o bilingüe bienvenido', aiExplanation: 'Podés postear en español o bilingüe. Es un espacio para la comunidad hispana.' },
 };
 
 export function generateFallbackRules(subredditName: string): FallbackResult {

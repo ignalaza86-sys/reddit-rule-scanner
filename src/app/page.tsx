@@ -181,10 +181,17 @@ export default function Home() {
         setRules(data.rules);
         setSummaryEs(data.summaryEs || '');
         // If subscribers is 0 and we got rules, they were AI-generated
-        const isEstimated = (data.subreddit?.subscribers === 0 || data.subreddit?.subscribers == null) && data.rules.length > 0;
+        // But keep the subscriber count from our initial data if the API returned 0
+        const apiSubs = data.subreddit?.subscribers || 0;
+        const isEstimated = apiSubs === 0 && data.rules.length > 0;
         setIsEstimatedRules(isEstimated);
         if (data.subreddit) {
-          setSelectedSub(prev => ({ ...prev, ...data.subreddit }));
+          setSelectedSub(prev => ({ 
+            ...prev, 
+            ...data.subreddit,
+            // Preserve subscriber count from initial data if API returned 0
+            subscribers: apiSubs > 0 ? apiSubs : prev.subscribers || 0,
+          }));
         }
         if (isEstimated) {
           toast.success(`Reglas de r/${sub.name} generadas por IA — verificá las oficiales en Reddit`);
@@ -232,17 +239,18 @@ export default function Home() {
         
         // If it's a single word (potential subreddit name) and we find an exact match, auto-load it
         if (isSingleWord && data.subreddits.length > 0) {
-          const exactMatch = data.subreddits.find((s: Subreddit) => s.name.toLowerCase() === cleanQuery);
+          const exactMatch = data.subreddits.find((s: any) => s.name.toLowerCase() === cleanQuery);
           if (exactMatch) {
             // Auto-load rules for exact match
             toast.success(`Encontré r/${exactMatch.name} — cargando reglas...`);
-            handleLoadRules(exactMatch);
+            handleLoadRules(exactMatch as Subreddit);
             return;
           }
-          // If first result has priority 0 (added by search as unknown sub), auto-load it too
-          if (data.subreddits[0]?.subscribers === 0) {
-            toast.info(`Cargando r/${cleanQuery} con IA...`);
-            handleLoadRules(data.subreddits[0]);
+          // If the search returned an unverified result (synthetic entry from API), auto-load it
+          const unverifiedResult = data.subreddits.find((s: any) => s.isUnverified);
+          if (unverifiedResult) {
+            toast.info(`Cargando r/${cleanQuery} — la IA va a generar las reglas...`);
+            handleLoadRules(unverifiedResult as Subreddit);
             return;
           }
         }
@@ -408,7 +416,7 @@ export default function Home() {
 
                 {/* Quick Tags */}
                 <div className="flex flex-wrap gap-2">
-                  {['feet', 'findom', 'cosplay', 'ASMR', 'femdom', 'lingerie', 'roleplay', 'latex', 'bondage', 'JOI', 'chastity', 'BBW', 'thick', 'smoking', 'goth', 'hotwife', 'OnlyFans'].map(tag => (
+                  {['latina', 'feet', 'findom', 'cosplay', 'ASMR', 'femdom', 'lingerie', 'roleplay', 'latex', 'bondage', 'JOI', 'chastity', 'BBW', 'thick', 'smoking', 'goth', 'hotwife', 'OnlyFans', 'dommes'].map(tag => (
                     <Badge
                       key={tag}
                       variant="outline"
@@ -944,7 +952,12 @@ export default function Home() {
                                     variant="outline"
                                     size="sm"
                                     className="flex-1 gap-2 text-xs"
-                                    onClick={() => handleLoadRules({ name: trend.subredditName! } as Subreddit)}
+                                    onClick={() => handleLoadRules({ 
+                                      name: trend.subredditName!, 
+                                      subscribers: trend.memberCount || trend.subreddit?.subscribers || 0,
+                                      over18: true,
+                                      displayName: trend.fetishName,
+                                    } as Subreddit)}
                                   >
                                     <Shield className="w-3 h-3" />
                                     Ver reglas
