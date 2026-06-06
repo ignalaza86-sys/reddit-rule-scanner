@@ -8,110 +8,67 @@ export interface DemoSubreddit {
 }
 
 export const ALL_SUBREDDITS: DemoSubreddit[] = [
-  // FEET
-  { name: 'feet', displayName: 'Feet 👣', description: 'A community for foot lovers. Share your favorite content!', subscribers: 1250000, over18: true, niches: ['feet', 'foot', 'pies'] },
-  { name: 'FootFetish', displayName: 'Foot Fetish', description: 'The original foot fetish community on Reddit. All foot content welcome.', subscribers: 890000, over18: true, niches: ['feet', 'foot', 'fetish'] },
-  { name: 'feetpics', displayName: 'Feet Pics', description: 'Quality feet pictures. Original content encouraged!', subscribers: 345000, over18: true, niches: ['feet', 'foot', 'pics'] },
-  { name: 'FeetInYourFace', displayName: 'Feet In Your Face', description: 'Close-up feet content. POV and sole shots.', subscribers: 234000, over18: true, niches: ['feet', 'foot', 'pov', 'soles'] },
-  { name: 'cutefeet', displayName: 'Cute Feet', description: 'Adorable feet content. Clean and aesthetic.', subscribers: 156000, over18: true, niches: ['feet', 'foot', 'cute'] },
-  { name: 'FeetToes', displayName: 'Feet & Toes', description: 'Focus on toes and soles. High quality content.', subscribers: 198000, over18: true, niches: ['feet', 'toes', 'soles'] },
-  { name: 'soles', displayName: 'Soles', description: 'Dedicated to soles. Top and bottom views.', subscribers: 267000, over18: true, niches: ['feet', 'soles', 'foot'] },
-  { name: 'paintedtoes', displayName: 'Painted Toes', description: 'Toenail polish and painted toes appreciation.', subscribers: 89000, over18: true, niches: ['feet', 'toes', 'nails', 'pedicure'] },
-  { name: 'footworship', displayName: 'Foot Worship', description: 'Foot worship and domination content. Femdom focused.', subscribers: 178000, over18: true, niches: ['feet', 'worship', 'femdom', 'domination'] },
-  { name: 'GirlFeet', displayName: 'Girl Feet', description: 'Female feet appreciation. OC and verified creators welcome.', subscribers: 312000, over18: true, niches: ['feet', 'girls', 'foot'] },
-  { name: 'FeetOnlyFans', displayName: 'Feet OnlyFans', description: 'Promote your OnlyFans feet content here. Self-promo allowed.', subscribers: 67000, over18: true, niches: ['feet', 'onlyfans', 'promo'] },
-  { name: 'ShoeDangling', displayName: 'Shoe Dangling', description: 'Shoe dangling, dipping and play. Heels and flats.', subscribers: 28000, over18: true, niches: ['feet', 'shoes', 'dangling', 'heels'] },
-  { name: 'FeetJOI', displayName: 'Feet JOI', description: 'Foot-focused jerk off instructions. Dominant feet.', subscribers: 56000, over18: true, niches: ['feet', 'joi', 'femdom', 'instruction'] },
+  // FEET — Verified active 2025
+  { name: 'VerifiedFeet', displayName: 'Verified Feet', description: 'High-quality verified foot models, close-ups & POV. Verification required. Popular with OF creators.', subscribers: 514000, over18: true, niches: ['feet', 'foot', 'verified', 'of'] },
+  { name: 'Feet_NSFW', displayName: 'Feet NSFW', description: 'Fully NSFW foot fetish content. Open posting schedule for creators.', subscribers: 495000, over18: true, niches: ['feet', 'foot', 'nsfw'] },
+  { name: 'feet', displayName: 'Feet', description: 'Largest foot fetish community on Reddit. Strict karma & verification rules but huge audience.', subscribers: 485000, over18: true, niches: ['feet', 'foot', 'soles', 'toes'] },
+  { name: 'FootFetish', displayName: 'Foot Fetish', description: 'Active foot fetish community. Allows OF watermarks. Great for creators.', subscribers: 464000, over18: true, niches: ['feet', 'foot', 'fetish', 'of'] },
 
-  // FINDOM
-  { name: 'findom', displayName: 'Financial Domination', description: 'The original findom community. Pay pigs and cash cows welcome.', subscribers: 456000, over18: true, niches: ['findom', 'financial', 'domination', 'money'] },
-  { name: 'FinDomBrat', displayName: 'Findom Brat', description: 'Bratty findom content. You know you want to pay.', subscribers: 123000, over18: true, niches: ['findom', 'brat', 'financial'] },
-  { name: 'paypigs', displayName: 'Pay Pigs', description: 'Financial submission and domination. Tribute required.', subscribers: 89000, over18: true, niches: ['findom', 'paypig', 'tribute', 'submission'] },
-  { name: 'FindomHumiliation', displayName: 'Findom Humiliation', description: 'Humiliation + financial domination. Know your place.', subscribers: 67000, over18: true, niches: ['findom', 'humiliation', 'degradation'] },
-  { name: 'GoddessWorship', displayName: 'Goddess Worship', description: 'Worship and tribute your goddess. Findom and femdom combined.', subscribers: 134000, over18: true, niches: ['findom', 'goddess', 'worship', 'femdom'] },
-  { name: 'OnlyFansFindom', displayName: 'OnlyFans Findom', description: 'Findom creators on OnlyFans. Self-promo allowed.', subscribers: 45000, over18: true, niches: ['findom', 'onlyfans', 'promo'] },
-  { name: 'CryptoFindom', displayName: 'Crypto Findom', description: 'Financial domination with crypto. Bitcoin tributes.', subscribers: 18000, over18: true, niches: ['findom', 'crypto', 'bitcoin'] },
-  { name: 'FindomFeet', displayName: 'Findom Feet', description: 'Where findom meets foot fetish. Pay to worship feet.', subscribers: 32000, over18: true, niches: ['findom', 'feet', 'foot', 'worship'] },
+  // FINDOM — Verified active 2025
+  { name: 'findom', displayName: 'Financial Domination', description: 'The main findom hub. Verification pinned. Active daily. High spending audience.', subscribers: 210000, over18: true, niches: ['findom', 'financial', 'domination', 'money'] },
+  { name: 'paypigsupportgroup', displayName: 'Paypig Support Group', description: 'Paypig-focused findom community. Sister sub to findom. Active tributing.', subscribers: 107000, over18: true, niches: ['findom', 'paypig', 'tribute'] },
+  { name: 'Sexsells', displayName: 'Sex Sells', description: 'General NSFW marketplace. Findom promo, custom content, high buyer intent.', subscribers: 849000, over18: true, niches: ['findom', 'selling', 'custom', 'marketplace', 'of'] },
 
-  // COSPLAY
-  { name: 'cosplay', displayName: 'Cosplay', description: 'The main cosplay community. All skill levels welcome.', subscribers: 2300000, over18: false, niches: ['cosplay', 'costume', 'character'] },
-  { name: 'cosplaygirls', displayName: 'Cosplay Girls', description: 'Female cosplay content. SFW and NSFW cosplay.', subscribers: 890000, over18: true, niches: ['cosplay', 'girls', 'costume'] },
-  { name: 'nsfwcosplay', displayName: 'NSFW Cosplay', description: 'Adult cosplay content. Your favorite characters like never before.', subscribers: 567000, over18: true, niches: ['cosplay', 'nsfw', 'adult', 'costume'] },
-  { name: 'CosplayButts', displayName: 'Cosplay Butts', description: 'Cosplay with a focus on the backside. NSFW.', subscribers: 234000, over18: true, niches: ['cosplay', 'butt', 'ass'] },
-  { name: 'CosplayBoobs', displayName: 'Cosplay Boobs', description: 'Cosplay featuring cleavage and more. NSFW.', subscribers: 345000, over18: true, niches: ['cosplay', 'boobs', 'cleavage'] },
-  { name: 'OnlyFansCosplay', displayName: 'OnlyFans Cosplay', description: 'Promote your cosplay OnlyFans content. Self-promo welcome!', subscribers: 78000, over18: true, niches: ['cosplay', 'onlyfans', 'promo'] },
+  // COSPLAY — Verified active 2025
+  { name: 'cosplaygirls', displayName: 'Cosplay Girls', description: 'Massive community for female cosplayers. Allows OF links in comments.', subscribers: 1905000, over18: true, niches: ['cosplay', 'girls', 'costume', 'of'] },
+  { name: 'nsfwcosplay', displayName: 'NSFW Cosplay', description: 'Largest nude cosplay subreddit. Verification required. +21K new members/month.', subscribers: 1677000, over18: true, niches: ['cosplay', 'nsfw', 'nude', 'costume'] },
+  { name: 'CosplayLewd', displayName: 'Cosplay Lewd', description: 'Lewd/erotic cosplay showcase. Created by ero-cosplayers. Good for OF promo.', subscribers: 573000, over18: true, niches: ['cosplay', 'lewd', 'erotic', 'of'] },
 
-  // ASMR
-  { name: 'asmr', displayName: 'ASMR', description: 'The main ASMR community. Relax and tingle.', subscribers: 3400000, over18: false, niches: ['asmr', 'relax', 'whisper', 'tingle'] },
-  { name: 'ASMRGirls', displayName: 'ASMR Girls', description: 'Female ASMR content. Whisper and relax.', subscribers: 123000, over18: false, niches: ['asmr', 'girls', 'whisper'] },
-  { name: 'nsfwasmr', displayName: 'NSFW ASMR', description: 'Adult ASMR content. Moans, whispers and more.', subscribers: 234000, over18: true, niches: ['asmr', 'nsfw', 'adult', 'moan'] },
-  { name: 'ASMROnlyFans', displayName: 'ASMR OnlyFans', description: 'ASMR creators on OnlyFans. Promote your content!', subscribers: 45000, over18: true, niches: ['asmr', 'onlyfans', 'promo'] },
-  { name: 'FeetASMR', displayName: 'Feet ASMR', description: 'ASMR with feet focus. Sole sounds and foot whispers.', subscribers: 19000, over18: true, niches: ['asmr', 'feet', 'foot', 'soles'] },
+  // ASMR — Verified active 2025
+  { name: 'GoneWildAudio', displayName: 'Gone Wild Audio', description: 'Erotic audio, ASMR, moans, dirty talk. The dominant NSFW audio sub. Huge audience for voice creators.', subscribers: 2160000, over18: true, niches: ['asmr', 'audio', 'voice', 'moan', 'dirty talk'] },
+  { name: 'dirtypenpals', displayName: 'Dirty Pen Pals', description: 'Text-based erotic roleplay & audio scripts. Good for writers & voice creators.', subscribers: 739000, over18: true, niches: ['asmr', 'audio', 'roleplay', 'script', 'writing'] },
 
-  // FEMDOM
-  { name: 'femdom', displayName: 'Female Domination', description: 'The main femdom community. Women in charge.', subscribers: 567000, over18: true, niches: ['femdom', 'domination', 'mistress'] },
-  { name: 'FemdomCommunity', displayName: 'Femdom Community', description: 'Discussion and content about female domination.', subscribers: 234000, over18: true, niches: ['femdom', 'community', 'domination'] },
-  { name: 'femdomgonewild', displayName: 'Femdom Gone Wild', description: 'Original femdom content from real dominas.', subscribers: 178000, over18: true, niches: ['femdom', 'oc', 'domina'] },
-  { name: 'Dominatrix', displayName: 'Dominatrix', description: 'Professional and lifestyle dominatrix content.', subscribers: 89000, over18: true, niches: ['femdom', 'dominatrix', 'pro'] },
-  { name: 'FemdomFeet', displayName: 'Femdom Feet', description: 'Foot domination. Trampling, worship and humiliation.', subscribers: 67000, over18: true, niches: ['femdom', 'feet', 'foot', 'worship'] },
-  { name: 'Pegging', displayName: 'Pegging', description: 'Pegging content. Strap-on play and more.', subscribers: 234000, over18: true, niches: ['femdom', 'pegging', 'strapon'] },
-  { name: 'Chastity', displayName: 'Chastity', description: 'Male chastity and keyholding. Locked up for your goddess.', subscribers: 145000, over18: true, niches: ['femdom', 'chastity', 'keyholding', 'denial'] },
-  { name: 'JOI', displayName: 'Jerk Off Instructions', description: 'Instructional content. Follow her commands.', subscribers: 345000, over18: true, niches: ['femdom', 'joi', 'instruction', 'edging'] },
-  { name: 'Edging', displayName: 'Edging', description: 'Edging and orgasm control.', subscribers: 189000, over18: true, niches: ['femdom', 'edging', 'denial', 'control'] },
+  // FEMDOM — Verified active 2025
+  { name: 'Femdom', displayName: 'Femdom', description: 'The main femdom subreddit. +11.6K new/month. Content-focused, allows creator posts.', subscribers: 828000, over18: true, niches: ['femdom', 'domination', 'mistress', 'of'] },
+  { name: 'BDSM', displayName: 'BDSM', description: 'Largest BDSM community on Reddit. Broad reach for femdom, bondage, and kink creators.', subscribers: 1398000, over18: true, niches: ['femdom', 'bdsm', 'bondage', 'kink'] },
+  { name: 'femdomcommunity', displayName: 'Femdom Community', description: 'Discussion and content for femdom lifestyle. Good engagement for creators.', subscribers: 200000, over18: true, niches: ['femdom', 'community', 'lifestyle'] },
 
-  // LINGERIE
-  { name: 'lingerie', displayName: 'Lingerie', description: 'Beautiful lingerie on beautiful people. SFW and NSFW.', subscribers: 890000, over18: true, niches: ['lingerie', 'underwear', 'sexy'] },
-  { name: 'LingerieGW', displayName: 'Lingerie Gone Wild', description: 'Original lingerie content. Show off your collection!', subscribers: 345000, over18: true, niches: ['lingerie', 'oc', 'gw'] },
-  { name: 'OnlyFansLingerie', displayName: 'OnlyFans Lingerie', description: 'Lingerie creators on OnlyFans. Self-promo allowed.', subscribers: 56000, over18: true, niches: ['lingerie', 'onlyfans', 'promo'] },
-  { name: 'Stockings', displayName: 'Stockings & Nylons', description: 'Stockings, pantyhose and nylons content.', subscribers: 78000, over18: true, niches: ['lingerie', 'stockings', 'nylons', 'pantyhose'] },
+  // LINGERIE — Verified active 2025
+  { name: 'lingerie', displayName: 'Lingerie', description: 'The primary lingerie subreddit. +8.2K new/month. Mix of SFW/NSFW. Good OF conversion.', subscribers: 806000, over18: true, niches: ['lingerie', 'underwear', 'sexy', 'of'] },
+  { name: 'gonewildcurvy', displayName: 'Gone Wild Curvy', description: 'Curvy women in lingerie/undress. Body-positive. Strong OF creator presence.', subscribers: 704000, over18: true, niches: ['lingerie', 'curvy', 'thick', 'of'] },
 
-  // ROLEPLAY
-  { name: 'roleplay', displayName: 'Roleplay', description: 'The main roleplay community. All scenarios welcome.', subscribers: 234000, over18: true, niches: ['roleplay', 'rp', 'scenario'] },
-  { name: 'DirtyRoleplay', displayName: 'Dirty Roleplay', description: 'Adult roleplay scenarios. Kink-friendly.', subscribers: 156000, over18: true, niches: ['roleplay', 'dirty', 'adult', 'kink'] },
-  { name: 'GiantessPOV', displayName: 'Giantess POV', description: 'Giantess and size play content from a POV perspective.', subscribers: 34000, over18: true, niches: ['roleplay', 'giantess', 'size', 'pov'] },
+  // LATEX — Verified active 2025
+  { name: 'latexfetish', displayName: 'Latex Fetish', description: 'Dedicated latex/rubber fetish content. Active community for latex OF creators.', subscribers: 137000, over18: true, niches: ['latex', 'rubber', 'fetish', 'shiny'] },
+  { name: 'Gonewild_latex', displayName: 'Gone Wild Latex', description: 'GW-style latex content. +2.4K new/month. Creator-friendly posting rules.', subscribers: 53000, over18: true, niches: ['latex', 'gw', 'rubber', 'of'] },
 
-  // LATEX
-  { name: 'latex', displayName: 'Latex', description: 'Latex fashion and fetish. Shiny and tight.', subscribers: 234000, over18: true, niches: ['latex', 'rubber', 'shiny'] },
-  { name: 'LatexFetish', displayName: 'Latex Fetish', description: 'Latex fetish content. Full body suits, masks, and more.', subscribers: 123000, over18: true, niches: ['latex', 'fetish', 'catsuit'] },
-  { name: 'girlsinyogapants', displayName: 'Girls in Yoga Pants', description: 'Tight yoga pants and leggings content.', subscribers: 567000, over18: true, niches: ['yoga', 'leggings', 'tight'] },
+  // BONDAGE — Verified active 2025
+  { name: 'Bondage', displayName: 'Bondage', description: 'The main bondage subreddit. +6.7K new/month. Ropes, cuffs, submission content.', subscribers: 772000, over18: true, niches: ['bondage', 'rope', 'restraint', 'submission'] },
 
-  // BONDAGE
-  { name: 'bondage', displayName: 'Bondage', description: 'The main bondage community. Ropes, cuffs, and more.', subscribers: 345000, over18: true, niches: ['bondage', 'rope', 'restraint'] },
-  { name: 'BondageGW', displayName: 'Bondage Gone Wild', description: 'Original bondage content. Tied up and loving it.', subscribers: 178000, over18: true, niches: ['bondage', 'oc', 'tied'] },
-  { name: 'shibari', displayName: 'Shibari', description: 'Japanese rope bondage. Art and kink combined.', subscribers: 234000, over18: true, niches: ['bondage', 'shibari', 'rope', 'art'] },
-  { name: 'SensoryDeprivation', displayName: 'Sensory Deprivation', description: 'Sensory deprivation and restriction play.', subscribers: 23000, over18: true, niches: ['bondage', 'sensory', 'deprivation', 'blindfold'] },
+  // SMOKING — Verified active 2025
+  { name: 'smokingfetish', displayName: 'Smoking Fetish', description: 'The primary smoking fetish sub. +3.6K new/month. Active and niche-specific.', subscribers: 150000, over18: true, niches: ['smoking', 'cigarette', 'fetish'] },
 
-  // SMOKING
-  { name: 'SmokingFetish', displayName: 'Smoking Fetish', description: 'Smoking content. Cigarettes, cigars and vape.', subscribers: 78000, over18: true, niches: ['smoking', 'cigarette', 'fetish'] },
-  { name: 'CigaretteGoddess', displayName: 'Cigarette Goddess', description: 'Goddess smoking content. Dominant smokers.', subscribers: 34000, over18: true, niches: ['smoking', 'femdom', 'goddess'] },
+  // BBW — Verified active 2025
+  { name: 'BBW', displayName: 'BBW', description: 'The biggest BBW subreddit. +15.5K new/month. 218K weekly visitors. Creator-friendly.', subscribers: 1092000, over18: true, niches: ['bbw', 'plus', 'big', 'curvy', 'of'] },
+  { name: 'BBWGW', displayName: 'BBW Gone Wild', description: 'BBW GoneWild. Verification required. Strong amateur/creator presence.', subscribers: 214000, over18: true, niches: ['bbw', 'gw', 'plus', 'of'] },
 
-  // BODY / FITNESS
-  { name: 'fitgirls', displayName: 'Fit Girls', description: 'Fit and athletic women. Gym content welcome.', subscribers: 456000, over18: true, niches: ['fitness', 'gym', 'fit', 'body'] },
-  { name: 'thick', displayName: 'Thick', description: 'Curvy and thick content. All shapes welcome.', subscribers: 890000, over18: true, niches: ['thick', 'curvy', 'body'] },
-  { name: 'BBW', displayName: 'BBW', description: 'Big beautiful women. Plus size content.', subscribers: 567000, over18: true, niches: ['bbw', 'plus', 'big', 'body'] },
-  { name: 'petite', displayName: 'Petite', description: 'Petite and small women content.', subscribers: 345000, over18: true, niches: ['petite', 'small', 'tiny', 'body'] },
+  // GOTH — Verified active 2025
+  { name: 'gothsluts', displayName: 'Goth Sluts', description: 'Massive goth NSFW sub. +44.8K new/month. One of the fastest-growing fetish subs on Reddit.', subscribers: 2679000, over18: true, niches: ['goth', 'alt', 'dark', 'nsfw', 'of'] },
+  { name: 'gothgirls', displayName: 'Goth Girls', description: 'SFW-leaning goth appreciation. Good funnel for OF conversion.', subscribers: 393000, over18: true, niches: ['goth', 'girls', 'alt', 'dark'] },
 
-  // TATTOOS / ALT
-  { name: 'tattooedgirls', displayName: 'Tattooed Girls', description: 'Ink and skin. Tattooed and pierced content.', subscribers: 234000, over18: true, niches: ['tattoo', 'ink', 'alt', 'piercing'] },
-  { name: 'altgirls', displayName: 'Alt Girls', description: 'Alternative girls. Emo, goth, punk and more.', subscribers: 178000, over18: true, niches: ['alt', 'goth', 'emo', 'punk'] },
-  { name: 'GothGirls', displayName: 'Goth Girls', description: 'Goth and dark aesthetic. Spooky and sexy.', subscribers: 123000, over18: true, niches: ['goth', 'dark', 'alt'] },
+  // HOTWIFE — Verified active 2025
+  { name: 'Hotwife', displayName: 'Hotwife', description: 'The main hotwife lifestyle sub. +27.5K new/month. Massive and growing fast.', subscribers: 1961000, over18: true, niches: ['hotwife', 'shared', 'lifestyle', 'couple'] },
+  { name: 'cuckold', displayName: 'Cuckold', description: 'Cuckold/hotwife content. Huge audience. Creator content welcome.', subscribers: 2178000, over18: true, niches: ['cuckold', 'cuck', 'hotwife', 'lifestyle'] },
 
-  // HAIR
-  { name: 'hairfetish', displayName: 'Hair Fetish', description: 'Hair play, washing and styling content.', subscribers: 34000, over18: true, niches: ['hair', 'fetish', 'washing'] },
+  // ONLYFANS PROMO — Verified active 2025
+  { name: 'OnlyFans101', displayName: 'OnlyFans 101', description: 'The largest OF promo sub. +42.4K new/month. Essential for all creators.', subscribers: 2924000, over18: true, niches: ['onlyfans', 'promo', 'of', 'creator'] },
+  { name: 'NSFWverifiedamateurs', displayName: 'NSFW Verified Amateurs', description: 'Verified amateur content. Great for OF discovery and building audience.', subscribers: 1376000, over18: true, niches: ['onlyfans', 'amateur', 'verified', 'of'] },
+  { name: 'onlyfansadvice', displayName: 'OnlyFans Advice', description: 'Creator education + networking. +9.9K new/month. Must-join for strategy.', subscribers: 554000, over18: true, niches: ['onlyfans', 'advice', 'tips', 'creator'] },
+  { name: 'OnlyFansPromo', displayName: 'OnlyFans Promo', description: 'Dedicated OF self-promotion. Focused community for posting your links.', subscribers: 94000, over18: true, niches: ['onlyfans', 'promo', 'self-promo', 'of'] },
 
-  // ONLYFANS / PROMO
-  { name: 'OnlyFansPromotions', displayName: 'OnlyFans Promotions', description: 'The main OnlyFans promo subreddit. Post your links!', subscribers: 234000, over18: true, niches: ['onlyfans', 'promo', 'promotion'] },
-  { name: 'OnlyFansReviews', displayName: 'OnlyFans Reviews', description: 'Reviews of OnlyFans accounts. Know before you buy.', subscribers: 89000, over18: true, niches: ['onlyfans', 'review', 'rating'] },
-  { name: 'OnlyFans101', displayName: 'OnlyFans 101', description: 'Tips and tricks for OnlyFans creators.', subscribers: 167000, over18: true, niches: ['onlyfans', 'tips', 'advice', 'creator'] },
+  // JOI — Verified active 2025
+  { name: 'joi', displayName: 'JOI', description: 'The main Jerk Off Instruction sub. +9.4K new/month. Very active. Great for OF creators.', subscribers: 549000, over18: true, niches: ['joi', 'instruction', 'femdom', 'edging', 'of'] },
 
-  // HOTWIFE / CUCKOLD
-  { name: 'hotwife', displayName: 'Hotwife', description: 'Hotwife lifestyle content. Shared wives.', subscribers: 567000, over18: true, niches: ['hotwife', 'shared', 'lifestyle'] },
-  { name: 'cuckold', displayName: 'Cuckold', description: 'Cuckold content and discussion.', subscribers: 345000, over18: true, niches: ['cuckold', 'cuck', 'lifestyle'] },
-
-  // BODY PAINT
-  { name: 'bodypaint', displayName: 'Body Paint', description: 'Body painting art. Naked canvas creativity.', subscribers: 45000, over18: true, niches: ['bodypaint', 'art', 'paint', 'creative'] },
-
-  // NAILS / HANDS
-  { name: 'nailfetish', displayName: 'Nail Fetish', description: 'Long nails, nail art and manicure content.', subscribers: 28000, over18: true, niches: ['nails', 'manicure', 'hands', 'fetish'] },
-  { name: 'handfetish', displayName: 'Hand Fetish', description: 'Beautiful hands and finger content.', subscribers: 19000, over18: true, niches: ['hands', 'fingers', 'fetish'] },
+  // CHASTITY — Verified active 2025 (fastest growing!)
+  { name: 'chastity', displayName: 'Chastity', description: 'The main chastity subreddit. +13K new/month. Called "fetish of 2025". Fastest-growing kink.', subscribers: 486000, over18: true, niches: ['chastity', 'keyholding', 'denial', 'femdom'] },
+  { name: 'chastitytraining', displayName: 'Chastity Training', description: 'Chastity training & keyholding. Active community for creators selling chastity content.', subscribers: 143000, over18: true, niches: ['chastity', 'training', 'keyholding', 'of'] },
 ];
