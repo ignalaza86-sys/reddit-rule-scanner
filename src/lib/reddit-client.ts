@@ -1,9 +1,10 @@
 // Client-side Reddit data fetcher
-// STRATEGY:
-// 1. Our own server-side proxy (/api/reddit-proxy) — tries from Vercel Edge + Node
-// 2. Direct browser fetch to Reddit — usually fails (CORS) but worth trying  
-// 3. Multiple CORS proxy services as fallback
-// 4. If all fail, user can manually paste rules from Reddit
+// STRATEGY (in order of priority):
+// 1. Cloudflare Worker proxy — dedicated, reliable, NOT blocked by Reddit
+// 2. Direct browser fetch to Reddit — usually fails (CORS) but worth trying
+// 3. Our server-side proxy (/api/reddit-proxy) — tries from Vercel Edge + Node
+// 4. Multiple CORS proxy services as fallback
+// 5. If all fail, user can manually paste rules from Reddit
 
 export interface RedditAboutData {
   title: string;
@@ -36,7 +37,7 @@ export interface ClientRedditResult {
   about: RedditAboutData | null;
   rules: RedditRule[];
   fetchedAt: number;
-  source: 'server_proxy' | 'direct' | 'cors_proxy' | 'manual' | 'unknown';
+  source: 'cloudflare_worker' | 'server_proxy' | 'direct' | 'cors_proxy' | 'manual' | 'unknown';
 }
 
 async function fetchWithTimeout(url: string, timeoutMs = 10000): Promise<Response> {
@@ -56,8 +57,120 @@ async function fetchWithTimeout(url: string, timeoutMs = 10000): Promise<Respons
 }
 
 /**
- * Fetch Reddit data using our own server-side proxy.
- * The server tries multiple strategies (Edge + CORS proxies).
+ * STRATEGY 1: Cloudflare Worker proxy
+ * This is the MOST RELIABLE way to fetch Reddit data from the browser.
+ * The Worker runs on Cloudflare's edge network, which Reddit doesn't block.
+ * Set NEXT_PUBLIC_REDDIT_PROXY_URL env var to your Worker URL.
+ */
+async function fetchViaCloudflareWorker(subreddit: string): Promise<ClientRedditResult | null> {
+  const workerUrl = process.env.NEXT_PUBLIC_REDDIT_PROXY_URL;
+  if (!workerUrl) {
+    console.log('[reddit-client] No Cloudflare Worker URL configured, skipping');
+    return null;
+  }
+
+  const subLower = subreddit.toLowerCase().trim();
+  if (!subLower || /[^a-zA-Z0-9_]/.test(subLower)) return null;
+
+  try {
+    const url = `${workerUrl}?subreddit=${encodeURIComponent(subLower)}`;
+    console.log(`[reddit-client] Trying Cloudflare Worker for r/${subLower}...`);
+    
+    const res = await fetchWithTimeout(url, 15000);
+    if (!res.ok) return null;
+
+    const data = await res.json();
+
+    if (!data.about && (!data.rules || data.rules.length === 0)) return null;
+
+    const about: RedditAboutData | null = data.about ? {
+      title: data.about.title || '',
+      display_name: data.about.display_name || subreddit,
+      subscribers: data.about.subscribers || 0,
+      over18: data.about.over18 || false,
+      public_description: data.about.public_description || '',
+      icon_img: data.about.icon_img || null,
+      community_icon: data.about.community_icon || null,
+      banner_img: data.about.banner_img || null,
+      active_user_count: data.about.active_user_count || null,
+      created_utc: data.about.created_utc || 0,
+      banned: false,
+      description: data.about.description || '',
+      submit_text: data.about.submit_text || '',
+    } : null;
+
+    const rules: RedditRule[] = (data.rules || []).map((r: any) => ({
+      short_name: r.short_name || '',
+      description: r.description || '',
+      priority: r.priority || 0,
+      created_utc: r.created_utc || 0,
+      violation_reason: r.violation_reason || '',
+    }));
+
+    console.log(`[reddit-client] Cloudflare Worker succeeded! Got ${rules.length} rules`);
+    return { about, rules, fetchedAt: Date.now(), source: 'cloudflare_worker' };
+  } catch (e) {
+    console.log('[reddit-client] Cloudflare Worker failed:', e instanceof Error ? e.message : 'unknown');
+    return null;
+  }
+}
+
+/**
+ * STRATEGY 2: Direct browser fetch to Reddit
+ * Usually fails due to CORS, but worth trying (Reddit sometimes allows it)
+ */
+async function fetchDirect(subreddit: string): Promise<ClientRedditResult | null> {
+  const subLower = subreddit.toLowerCase().trim();
+  try {
+    const aboutUrl = `https://www.reddit.com/r/${encodeURIComponent(subLower)}/about.json`;
+    const rulesUrl = `https://www.reddit.com/r/${encodeURIComponent(subLower)}/about/rules.json`;
+    
+    const [aboutRes, rulesRes] = await Promise.all([
+      fetchWithTimeout(aboutUrl, 8000).catch(() => null),
+      fetchWithTimeout(rulesUrl, 8000).catch(() => null),
+    ]);
+
+    let about: RedditAboutData | null = null;
+    let rules: RedditRule[] = [];
+
+    if (aboutRes?.ok) {
+      try {
+        const json = await aboutRes.json();
+        if (json.data && !json.data.banned) {
+          about = {
+            title: json.data.title || '',
+            display_name: json.data.display_name || subLower,
+            subscribers: json.data.subscribers || 0,
+            over18: json.data.over18 || false,
+            public_description: json.data.public_description || '',
+            icon_img: json.data.icon_img || null,
+            community_icon: json.data.community_icon || null,
+            banner_img: json.data.banner_img || null,
+            active_user_count: json.data.active_user_count || null,
+            created_utc: json.data.created_utc || 0,
+            banned: false,
+            description: json.data.description || '',
+          };
+        }
+      } catch {}
+    }
+
+    if (rulesRes?.ok) {
+      try {
+        const json = await rulesRes.json();
+        rules = json.rules || [];
+      } catch {}
+    }
+
+    if (about || rules.length > 0) {
+      return { about, rules, fetchedAt: Date.now(), source: 'direct' };
+    }
+  } catch {}
+  return null;
+}
+
+/**
+ * STRATEGY 3: Server-side proxy (our Vercel Edge function)
  */
 async function fetchViaServerProxy(subreddit: string): Promise<ClientRedditResult | null> {
   try {
@@ -101,17 +214,13 @@ async function fetchViaServerProxy(subreddit: string): Promise<ClientRedditResul
 
 // CORS proxies — these run in the user's BROWSER and may work from residential IPs
 const CORS_PROXIES = [
-  // corsproxy.io — free tier, works from browser
   'https://corsproxy.io/?',
-  // allorigins — alternative
   'https://api.allorigins.win/raw?url=',
-  // thingproxy
   'https://thingproxy.freeboard.io/fetch/',
 ];
 
 /**
- * Try fetching Reddit directly from browser via CORS proxies.
- * Works when user is on residential IP (not a cloud server).
+ * STRATEGY 4: Browser CORS proxies (least reliable)
  */
 async function fetchViaCORSProxy(subreddit: string): Promise<ClientRedditResult | null> {
   const subLower = subreddit.toLowerCase().trim();
@@ -174,70 +283,12 @@ async function fetchViaCORSProxy(subreddit: string): Promise<ClientRedditResult 
 }
 
 /**
- * Try fetching Reddit directly (no proxy).
- * This works if Reddit has enabled CORS for their JSON endpoints.
- */
-async function fetchDirect(subreddit: string): Promise<ClientRedditResult | null> {
-  const subLower = subreddit.toLowerCase().trim();
-  try {
-    const aboutUrl = `https://www.reddit.com/r/${encodeURIComponent(subLower)}/about.json`;
-    const rulesUrl = `https://www.reddit.com/r/${encodeURIComponent(subLower)}/about/rules.json`;
-    
-    const [aboutRes, rulesRes] = await Promise.all([
-      fetchWithTimeout(aboutUrl, 8000).catch(() => null),
-      fetchWithTimeout(rulesUrl, 8000).catch(() => null),
-    ]);
-
-    let about: RedditAboutData | null = null;
-    let rules: RedditRule[] = [];
-
-    if (aboutRes?.ok) {
-      try {
-        const json = await aboutRes.json();
-        if (json.data && !json.data.banned) {
-          about = {
-            title: json.data.title || '',
-            display_name: json.data.display_name || subLower,
-            subscribers: json.data.subscribers || 0,
-            over18: json.data.over18 || false,
-            public_description: json.data.public_description || '',
-            icon_img: json.data.icon_img || null,
-            community_icon: json.data.community_icon || null,
-            banner_img: json.data.banner_img || null,
-            active_user_count: json.data.active_user_count || null,
-            created_utc: json.data.created_utc || 0,
-            banned: false,
-            description: json.data.description || '',
-          };
-        }
-      } catch {}
-    }
-
-    if (rulesRes?.ok) {
-      try {
-        const json = await rulesRes.json();
-        rules = json.rules || [];
-      } catch {}
-    }
-
-    if (about || rules.length > 0) {
-      return { about, rules, fetchedAt: Date.now(), source: 'direct' };
-    }
-  } catch {}
-  return null;
-}
-
-/**
  * Parse manually pasted rules text into structured format.
- * User can paste the rules from Reddit's rules page.
  */
 export function parseManualRules(text: string): { name: string; textOriginal: string }[] {
   if (!text.trim()) return [];
   
-  // Try to parse structured text (numbered rules, or rules separated by blank lines)
   const rules: { name: string; textOriginal: string }[] = [];
-  
-  // Split by common rule separators
   const lines = text.split('\n');
   let currentRule: { name: string; textOriginal: string } | null = null;
   
@@ -245,28 +296,22 @@ export function parseManualRules(text: string): { name: string; textOriginal: st
     const trimmed = line.trim();
     if (!trimmed) continue;
     
-    // Check if this is a rule header (numbered, or starts with common patterns)
     const ruleMatch = trimmed.match(/^(\d+)\.\s*(.+)/) || 
                       trimmed.match(/^Rule\s*(\d+)[:.]\s*(.+)/i) ||
                       trimmed.match(/^[-•]\s*(.+)/);
     
     if (ruleMatch) {
-      // Save previous rule
       if (currentRule) rules.push(currentRule);
-      
       const ruleText = ruleMatch[2] || ruleMatch[1] || trimmed;
       currentRule = { name: ruleText.substring(0, 80), textOriginal: trimmed };
     } else if (currentRule) {
-      // Continuation of previous rule
       currentRule.textOriginal += '\n' + trimmed;
     } else {
-      // First rule without number
       currentRule = { name: trimmed.substring(0, 80), textOriginal: trimmed };
     }
   }
   
   if (currentRule) rules.push(currentRule);
-  
   return rules;
 }
 
@@ -278,7 +323,14 @@ export async function fetchRedditFromBrowser(subreddit: string): Promise<ClientR
   const subLower = subreddit.toLowerCase().trim();
   if (!subLower || /[^a-zA-Z0-9_]/.test(subLower)) return null;
 
-  // STRATEGY 1: Direct fetch (Reddit sometimes allows CORS from browsers)
+  // STRATEGY 1: Cloudflare Worker proxy (MOST RELIABLE)
+  const workerResult = await fetchViaCloudflareWorker(subLower);
+  if (workerResult && (workerResult.about || workerResult.rules.length > 0)) {
+    console.log(`[reddit-client] Cloudflare Worker succeeded for r/${subLower}!`);
+    return workerResult;
+  }
+
+  // STRATEGY 2: Direct fetch (Reddit sometimes allows CORS from browsers)
   console.log(`[reddit-client] Trying direct fetch for r/${subLower}...`);
   const directResult = await fetchDirect(subLower);
   if (directResult && (directResult.about || directResult.rules.length > 0)) {
@@ -286,7 +338,7 @@ export async function fetchRedditFromBrowser(subreddit: string): Promise<ClientR
     return directResult;
   }
 
-  // STRATEGY 2: Our server-side proxy (Edge + CORS intermediaries)
+  // STRATEGY 3: Our server-side proxy (Edge + CORS intermediaries)
   console.log(`[reddit-client] Trying server proxy for r/${subLower}...`);
   const serverResult = await fetchViaServerProxy(subLower);
   if (serverResult && (serverResult.about || serverResult.rules.length > 0)) {
@@ -294,7 +346,7 @@ export async function fetchRedditFromBrowser(subreddit: string): Promise<ClientR
     return serverResult;
   }
 
-  // STRATEGY 3: Browser CORS proxies
+  // STRATEGY 4: Browser CORS proxies
   console.log(`[reddit-client] Trying CORS proxies for r/${subLower}...`);
   const corsResult = await fetchViaCORSProxy(subLower);
   if (corsResult && (corsResult.about || corsResult.rules.length > 0)) {
@@ -306,9 +358,6 @@ export async function fetchRedditFromBrowser(subreddit: string): Promise<ClientR
   return null;
 }
 
-/**
- * Extract raw rules from Reddit API response into a simpler format
- */
 export function extractRulesFromReddit(rules: RedditRule[]): { name: string; textOriginal: string }[] {
   return rules
     .filter(r => r.short_name || r.description)
@@ -318,9 +367,6 @@ export function extractRulesFromReddit(rules: RedditRule[]): { name: string; tex
     }));
 }
 
-/**
- * Check if a subreddit appears to exist based on the about data
- */
 export function isSubredditValid(result: ClientRedditResult | null): boolean {
   if (!result) return false;
   if (result.about?.banned) return false;

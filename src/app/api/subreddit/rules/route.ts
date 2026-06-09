@@ -4,6 +4,9 @@ import { cache, CACHE_TTL } from '@/lib/cache';
 import { getSubredditData, getSubscriberCount } from '@/lib/demo-subreddits';
 import { fetchSubredditWithOAuth, isOAuthConfigured } from '@/lib/reddit-oauth';
 
+// Cloudflare Worker proxy URL (alternative to OAuth — no approval needed)
+const CF_WORKER_URL = process.env.REDDIT_PROXY_URL || '';
+
 // Timeout wrapper for fetch calls
 function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 8000): Promise<Response> {
   const controller = new AbortController();
@@ -643,6 +646,137 @@ REGLAS ESTRICTAS:
       }
     } else {
       console.log('[rules] Reddit OAuth not configured — skipping OAuth strategy');
+    }
+
+    // ================================================================
+    // 3b. CLOUDFLARE WORKER PROXY — no approval needed, very reliable
+    // A dedicated Worker on Cloudflare's edge that proxies Reddit API.
+    // Reddit doesn't block Cloudflare IPs like it blocks Vercel/AWS.
+    // ================================================================
+    if (CF_WORKER_URL) {
+      try {
+        console.log(`[rules] Fetching r/${subLower} via Cloudflare Worker proxy...`);
+        const workerRes = await fetchWithTimeout(
+          `${CF_WORKER_URL}?subreddit=${encodeURIComponent(subLower)}`,
+          { headers: { 'Accept': 'application/json' } },
+          15000
+        );
+
+        if (workerRes.ok) {
+          const workerData = await workerRes.json();
+
+          if (workerData.about || (workerData.rules && workerData.rules.length > 0)) {
+            const about = workerData.about;
+            const rawCfRules = workerData.rules || [];
+
+            let cfSubData: any = {
+              title: about?.title || curatedData?.displayName || `r/${subLower}`,
+              display_name: about?.display_name || subLower,
+              subscribers: about?.subscribers || curatedData?.subscribers || 0,
+              over18: about?.over18 ?? true,
+              public_description: about?.public_description || curatedData?.description || '',
+              icon_img: about?.icon_img || null,
+              community_icon: about?.community_icon || null,
+            };
+
+            if (curatedData && (cfSubData.subscribers === 0 || cfSubData.subscribers == null)) {
+              cfSubData.subscribers = curatedData.subscribers;
+            }
+
+            const cfExtractedRules = rawCfRules.map((rule: any) => ({
+              name: rule.short_name || 'Regla',
+              textOriginal: rule.description || '',
+            }));
+
+            if (cfExtractedRules.length > 0) {
+              // Try AI translation
+              try {
+                const ZAI = (await import('z-ai-web-dev-sdk')).default;
+                const zai = await ZAI.create();
+                const rulesText = cfExtractedRules.map((r: any, i: number) => `Rule ${i + 1}: "${r.name}"\n${r.textOriginal}`).join('\n\n---\n\n');
+
+                const completion = await Promise.race([
+                  zai.chat.completions.create({
+                    messages: [
+                      {
+                        role: 'system',
+                        content: `Sos un traductor experto en Reddit. Respondé SOLO en JSON válido. No markdown.
+REGLAS ESTRICTAS:
+- Traducí las reglas FIELMENTE. No inventes ni agregues nada.
+- Para requiresVerify: poné true SOLO si alguna regla menciona explícitamente "verification" o "verified" como REQUISITO. Si no se menciona, poné null.
+- Para allowPromo: poné true SOLO si alguna regla permite explícitamente self-promotion. Poné false SOLO si lo prohíbe. Si no se menciona, poné null.
+- No asumas nada. Solo extraé lo que está ESCRITO en las reglas.`,
+                      },
+                      { role: 'user', content: `Traducí estas reglas REALES de r/${subLower} al español rioplatense. Reglas:\n${rulesText}\n\nJSON: { "rules": [{ "name": "nombre original exacto", "textEs": "traduccion fiel", "isKeyRule": bool, "keyRuleType": "promo|verification|post_limit|restricted_days|flair|title_format|other", "aiExplanation": "explicacion basada SOLO en lo que dice la regla" }], "allowPromo": bool|null, "requiresVerify": bool|null, "postLimit": "string|null", "promoDays": "string|null", "summaryEs": "resumen basado SOLO en las reglas reales" }` },
+                    ],
+                    temperature: 0.1,
+                  }),
+                  new Promise((_, rej) => setTimeout(() => rej(new Error('AI timeout')), 20000)),
+                ]) as any;
+
+                const content = completion.choices[0]?.message?.content || '';
+                const aiResult = safeParseAIResponse(content);
+
+                if (aiResult?.rules?.length > 0) {
+                  try {
+                    const upsertData: any = {
+                      name: subLower, displayName: cfSubData.title || cfSubData.display_name || curatedData?.displayName || `r/${subLower}`,
+                      description: cfSubData.public_description || curatedData?.description || '', subscribers: cfSubData.subscribers || curatedData?.subscribers || 0,
+                      over18: cfSubData.over18 || true, allowPromo: aiResult.allowPromo ?? null, requiresVerify: aiResult.requiresVerify ?? null,
+                      postLimit: aiResult.postLimit ?? null, promoDays: aiResult.promoDays ?? null, iconUrl: cfSubData.icon_img || cfSubData.community_icon || null,
+                    };
+                    const savedSub = await db.subreddit.upsert({ where: { name: subLower }, update: upsertData, create: upsertData });
+                    await db.rule.deleteMany({ where: { subredditId: savedSub.id } });
+                    for (const rule of aiResult.rules) {
+                      const matchingRaw = cfExtractedRules.find((r: any) => r.name === rule.name);
+                      await db.rule.create({
+                        data: { subredditId: savedSub.id, ruleName: rule.name || 'Regla', ruleTextOriginal: matchingRaw?.textOriginal || rule.textOriginal || '', ruleTextEs: rule.textEs || '', category: rule.keyRuleType || null, isKeyRule: rule.isKeyRule || false, keyRuleType: rule.keyRuleType || null, aiExplanation: rule.aiExplanation || '' },
+                      });
+                    }
+                    const savedRules = await db.rule.findMany({ where: { subredditId: savedSub.id } });
+                    const fullSub = await db.subreddit.findUnique({ where: { id: savedSub.id } });
+                    const result = { subreddit: fullSub, rules: savedRules, summaryEs: aiResult.summaryEs || '', dataSource: 'reddit_oauth' as DataSource, cached: false };
+                    cache.set(`rules:${subLower}`, result, CACHE_TTL.rules);
+                    return NextResponse.json(result);
+                  } catch (dbErr) {
+                    const rules = aiResult.rules.map((r: any, i: number) => ({
+                      id: `cf-${i}`, ruleName: r.name || 'Regla', ruleTextOriginal: cfExtractedRules.find((er: any) => er.name === r.name)?.textOriginal || r.textOriginal || '', ruleTextEs: r.textEs || '', category: r.keyRuleType || null, isKeyRule: r.isKeyRule || false, keyRuleType: r.keyRuleType || null, aiExplanation: r.aiExplanation || '',
+                    }));
+                    const result = { subreddit: { name: subLower, displayName: cfSubData.title || curatedData?.displayName || `r/${subLower}`, subscribers: cfSubData.subscribers || curatedData?.subscribers || 0, over18: cfSubData.over18 || true, allowPromo: aiResult.allowPromo ?? null, requiresVerify: aiResult.requiresVerify ?? null }, rules, summaryEs: aiResult.summaryEs || '', dataSource: 'reddit_oauth' as DataSource, cached: false };
+                    cache.set(`rules:${subLower}`, result, CACHE_TTL.rules);
+                    return NextResponse.json(result);
+                  }
+                }
+              } catch (e) {
+                console.error('AI translation failed for CF Worker data:', e instanceof Error ? e.message : 'unknown');
+              }
+
+              // AI failed — save raw rules (REAL but untranslated)
+              try {
+                const upsertData: any = { name: subLower, displayName: cfSubData.title || cfSubData.display_name || curatedData?.displayName || `r/${subLower}`, description: cfSubData.public_description || curatedData?.description || '', subscribers: cfSubData.subscribers || curatedData?.subscribers || 0, over18: cfSubData.over18 || true, iconUrl: cfSubData.icon_img || cfSubData.community_icon || null };
+                const savedSub = await db.subreddit.upsert({ where: { name: subLower }, update: upsertData, create: upsertData });
+                await db.rule.deleteMany({ where: { subredditId: savedSub.id } });
+                for (const rule of cfExtractedRules) {
+                  await db.rule.create({ data: { subredditId: savedSub.id, ruleName: rule.name, ruleTextOriginal: rule.textOriginal, ruleTextEs: rule.textOriginal, isKeyRule: false, keyRuleType: 'other' } });
+                }
+                const savedRules = await db.rule.findMany({ where: { subredditId: savedSub.id } });
+                const result = { subreddit: savedSub, rules: savedRules, summaryEs: 'Reglas REALES de Reddit (sin traducción de IA).', dataSource: 'reddit_real_no_translate' as DataSource, cached: false };
+                cache.set(`rules:${subLower}`, result, CACHE_TTL.rules);
+                return NextResponse.json(result);
+              } catch (dbErr) {
+                const rules = cfExtractedRules.map((r: any, i: number) => ({ id: `cf-raw-${i}`, ruleName: r.name, ruleTextOriginal: r.textOriginal, ruleTextEs: r.textOriginal, isKeyRule: false, keyRuleType: 'other' }));
+                const result = { subreddit: { name: subLower, displayName: cfSubData.title || `r/${subLower}`, subscribers: cfSubData.subscribers || curatedData?.subscribers || 0, over18: cfSubData.over18 || true }, rules, summaryEs: 'Reglas REALES sin traducción.', dataSource: 'reddit_real_no_translate' as DataSource, cached: false };
+                cache.set(`rules:${subLower}`, result, CACHE_TTL.rules);
+                return NextResponse.json(result);
+              }
+            }
+          }
+        }
+      } catch (cfErr) {
+        console.error('[rules] Cloudflare Worker proxy failed:', cfErr instanceof Error ? cfErr.message : 'unknown');
+      }
+    } else {
+      console.log('[rules] Cloudflare Worker proxy not configured — skipping');
     }
 
     // ================================================================
