@@ -156,7 +156,7 @@ export default function Home() {
 
   // Load rules for a subreddit (defined BEFORE handleSearch since it's used by it)
   // NEW: Try client-side Reddit fetch FIRST (browser can access Reddit, Vercel can't)
-  const handleLoadRules = useCallback(async (sub: Subreddit) => {
+  const handleLoadRules = useCallback(async (sub: Subreddit, forceFresh: boolean = false) => {
     setSelectedSub(sub);
     setIsLoadingRules(true);
     setRules([]);
@@ -193,7 +193,7 @@ export default function Home() {
         } else if (ds === 'reddit_real_no_translate') {
           toast.success(`Reglas REALES de r/${sub.name} obtenidas de Reddit (sin traducir)`);
         } else if (isEstimated) {
-          toast.success(`Reglas de r/${sub.name} estimadas por IA — verificá las oficiales en Reddit`);
+          toast.warning(`Reglas de r/${sub.name} ESTIMADAS por IA — pueden ser incorrectas. Verificá en Reddit.`);
         } else {
           toast.success(`Reglas de r/${sub.name} cargadas`);
         }
@@ -205,7 +205,12 @@ export default function Home() {
     };
 
     try {
-      // STEP 1: Try client-side Reddit fetch (browser can access Reddit!)
+      // STEP 0: If forceFresh, purge old cached data first
+      if (forceFresh) {
+        await fetch(`/api/subreddit/rules?subreddit=${encodeURIComponent(sub.name)}`, { method: 'DELETE' }).catch(() => {});
+      }
+
+      // STEP 1: Try fetching Reddit data via our server proxy + CORS proxies
       setRedditFetchStatus('fetching');
       try {
         const { fetchRedditFromBrowser } = await import('@/lib/reddit-client');
@@ -239,7 +244,7 @@ export default function Home() {
       
       setRedditFetchStatus('failed');
 
-      // STEP 2: Client-side fetch failed — fall back to server API
+      // STEP 2: Client-side fetch failed — fall back to server API (force=true to skip cache)
       const res = await fetch(`/api/subreddit/rules?subreddit=${encodeURIComponent(sub.name)}&force=true`);
       clearTimeout(step1Timer);
       clearTimeout(step2Timer);
@@ -624,9 +629,9 @@ export default function Home() {
                         animate={{ opacity: 1, y: 0 }}
                         className="text-sm text-muted-foreground"
                       >
-                        {loadingStep === 0 && '🔍 Obteniendo datos reales de Reddit...'}
-                        {loadingStep === 1 && '🤖 La IA está analizando y traduciendo las reglas...'}
-                        {loadingStep === 2 && '🌐 Finalizando traducción al español...'}
+                        {loadingStep === 0 && '🔍 Conectando con Reddit para obtener reglas reales...'}
+                        {loadingStep === 1 && '🤖 Traduciendo reglas reales al español con IA...'}
+                        {loadingStep === 2 && '🌐 Finalizando — puede tardar si es la primera vez...'}
                       </motion.p>
                       <p className="text-xs text-muted-foreground/60">
                         Puede tardar unos segundos si es la primera vez que se carga este subreddit
@@ -715,7 +720,16 @@ export default function Home() {
                             <div className="mt-2 p-3 rounded-lg bg-amber-500/5 border border-amber-500/20">
                               <p className="text-xs text-amber-400 flex items-start gap-2">
                                 <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                                No pudimos obtener las reglas reales de Reddit. Estas reglas fueron ESTIMADAS por IA y pueden ser incorrectas. Verificá las reglas oficiales en Reddit antes de postear.
+                                <span>
+                                  <strong>No pudimos obtener las reglas reales de Reddit.</strong> Estas reglas fueron ESTIMADAS por IA y PUEDEN SER INCORRECTAS. 
+                                  Verificá las reglas oficiales en Reddit antes de postear. 
+                                  <button 
+                                    className="underline font-medium hover:text-amber-300 ml-1"
+                                    onClick={() => handleLoadRules(selectedSub, true)}
+                                  >
+                                    Intentar de nuevo
+                                  </button>
+                                </span>
                               </p>
                             </div>
                           )}
@@ -752,7 +766,7 @@ export default function Home() {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => handleLoadRules(selectedSub)}
+                                onClick={() => handleLoadRules(selectedSub, true)}
                               >
                                 <RefreshCw className="w-4 h-4 text-muted-foreground" />
                               </Button>

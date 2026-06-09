@@ -130,7 +130,6 @@ const NICHE_RULES: Record<string, FallbackRule[]> = {
     { short_name: 'Self-promo in comments only', description: 'OnlyFans and social media links ONLY in comments of your own posts.', isKeyRule: true, keyRuleType: 'promo' },
     { short_name: 'Post limit: 1 per 24 hours', description: 'Maximum 1 post per 24-hour period.', isKeyRule: true, keyRuleType: 'post_limit' },
     { short_name: 'Required flair', description: 'All posts must have appropriate flair: OC, Non-OC, etc.', isKeyRule: true, keyRuleType: 'flair' },
-    { short_name: 'Verification required for OC', description: 'Original content posters must be verified.', isKeyRule: true, keyRuleType: 'verification' },
     { short_name: 'No catfishing', description: 'Use your real photos. Stolen content results in permanent ban.', isKeyRule: true, keyRuleType: 'verification' },
     { short_name: 'Spanish or bilingual content welcome', description: 'Content in Spanish or bilingual (Spanish/English) is encouraged.', isKeyRule: false, keyRuleType: 'other' },
   ],
@@ -143,7 +142,6 @@ const NICHE_RULES: Record<string, FallbackRule[]> = {
 };
 
 const BASE_RULES: FallbackRule[] = [
-  { short_name: 'Verification required for OC', description: 'All original content posters must be verified. Send modmail with verification photos including your username, the subreddit name, and today\'s date.', isKeyRule: true, keyRuleType: 'verification' },
   { short_name: 'Follow Reddit site-wide rules', description: 'All posts must comply with Reddit\'s content policy. No minors, no non-consensual content, no illegal content. Violations result in permanent bans.', isKeyRule: false, keyRuleType: 'other' },
   { short_name: 'Be respectful', description: 'No harassment, hate speech, bullying, or personal attacks. Keep discussions civil and report rule-breaking behavior to the mods.', isKeyRule: false, keyRuleType: 'other' },
   { short_name: 'No doxxing or personal info', description: 'Do not share anyone\'s personal information, real name, location, or other identifying details without their explicit consent.', isKeyRule: false, keyRuleType: 'other' },
@@ -244,7 +242,7 @@ export function generateFallbackRules(subredditName: string): FallbackResult {
     niche: detectedNiche,
     isNSFW,
     allowPromo: detectedNiche === 'onlyfans' ? true : detectedNiche === 'asmr' ? false : null,
-    requiresVerify: true,
+    requiresVerify: null, // Don't assume verification is required
     summaryEs: (NICHE_SUMMARIES[detectedNiche] || NICHE_SUMMARIES.general) + ' Estas reglas son estimadas — verificá las oficiales en Reddit.',
   };
 }
