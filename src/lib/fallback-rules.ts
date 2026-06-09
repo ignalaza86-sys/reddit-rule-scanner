@@ -18,6 +18,10 @@ export interface FallbackResult {
 }
 
 const NICHE_KEYWORDS: Record<string, string[]> = {
+  // Order matters! More specific niches should come FIRST
+  // latina before femdom (dommeslatinas should match latina, not femdom)
+  onlyfans: ['onlyfans'],
+  latina: ['latina', 'latinas', 'latin', 'español', 'mexicana', 'argentina', 'colombiana', 'dommeslatinas'],
   feet: ['feet', 'foot', 'soles', 'toes', 'pedicure', 'footfetish', 'feetpics', 'footworship', 'feetjobs'],
   findom: ['findom', 'paypig', 'tribute', 'goddessworship', 'goddess'],
   femdom: ['femdom', 'dominatrix', 'mistress', 'chastity', 'joi', 'edging', 'pegging', 'domme', 'dommes'],
@@ -29,10 +33,8 @@ const NICHE_KEYWORDS: Record<string, string[]> = {
   smoking: ['smoking', 'cigarette', 'vape'],
   body: ['thick', 'bbw', 'petite', 'fitgirls', 'tall'],
   alt: ['goth', 'alt', 'tattoo', 'piercing', 'emo'],
-  onlyfans: ['onlyfans'],
   hotwife: ['hotwife', 'cuckold'],
   roleplay: ['roleplay', 'giantess'],
-  latina: ['latina', 'latinas', 'latin', 'español', 'mexicana', 'argentina', 'colombiana', 'dommeslatinas'],
 };
 
 const NICHE_RULES: Record<string, FallbackRule[]> = {
@@ -150,7 +152,7 @@ const BASE_RULES: FallbackRule[] = [
 const NICHE_SUMMARIES: Record<string, string> = {
   feet: 'Comunidad de fetichismo de pies. La autopromoción suele permitirse solo en comentarios. Verificación obligatoria para OC. Ideal para creadores de contenido de pies en OnlyFans.',
   findom: 'Comunidad de dominación financiera. La autopromoción está permitida con flair. Se requiere verificación para Dommes. Formato de título obligatorio con tags [F4M] etc.',
-  femdom: 'Comunidad de dominación femenina. Autopromoción generalmente solo los fines de semana. Verificación requerida. Excelente para creadoras de contenido femdom.',
+  femdom: 'Comunidad de dominación femenina. Autopromoción generalmente solo los fines de semana. Excelente para creadoras de contenido femdom.',
   cosplay: 'Comunidad de cosplay. La autopromoción de OnlyFans solo en comentarios. El contenido debe ser cosplay reconocible. Buena visibilidad para creadoras de cosplay.',
   asmr: 'Comunidad ASMR (SFW). Autopromoción limitada a 1 post por semana. No se permite contenido NSFW. Buen lugar para construir audiencia.',
   bondage: 'Comunidad de bondage y shibari. Autopromoción solo en comentarios. El consentimiento es obligatorio. Contenido extremo requiere tags de advertencia.',
@@ -162,7 +164,7 @@ const NICHE_SUMMARIES: Record<string, string> = {
   onlyfans: 'Subreddit de promoción directa de OnlyFans. Se permite y se espera autopromoción. Verificación obligatoria. Ideal para conseguir suscriptores.',
   hotwife: 'Comunidad hotwife/cuckold. Autopromoción con flair. Requiere consentimiento de todas las partes.',
   roleplay: 'Comunidad de roleplay. Autopromoción en comentarios. Contenido debe involucrar escenarios de roleplay.',
-  latina: 'Comunidad Latina. Autopromoción solo en comentarios. Verificación requerida para OC. Excelente nicho para creadoras Latinas de OnlyFans. Contenido en español o bilingüe bienvenido.',
+  latina: 'Comunidad Latina. Autopromoción solo en comentarios. Excelente nicho para creadoras Latinas de OnlyFans. Contenido en español o bilingüe bienvenido.',
   general: 'Comunidad en Reddit. Las reglas de promoción varían — verificá con los moderadores. La mayoría de subreddits NSFW requieren verificación para OC.',
 };
 
