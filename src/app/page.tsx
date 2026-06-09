@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, Shield, TrendingUp, Star, StarOff, ExternalLink,
@@ -8,7 +8,7 @@ import {
   Eye, Zap, ChevronDown, ChevronUp, Heart, BookmarkPlus,
   BookmarkCheck, RefreshCw, ArrowRight, Info, Tag, Clock,
   Calendar, MessageSquare, Users, BarChart3, Sparkles,
-  ShieldCheck, ShieldAlert, ShieldX
+  ShieldCheck, ShieldAlert, ShieldX, Wifi, WifiOff
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -141,7 +141,9 @@ export default function Home() {
   const [isLoadingRules, setIsLoadingRules] = useState(false);
   const [expandedRule, setExpandedRule] = useState<string | null>(null);
   const [isEstimatedRules, setIsEstimatedRules] = useState(false);
+  const [dataSource, setDataSource] = useState<'reddit_real' | 'reddit_real_no_translate' | 'ai_translation' | 'ai_estimated' | 'fallback' | null>(null);
   const [loadingStep, setLoadingStep] = useState(0); // 0=fetching, 1=analyzing, 2=translating
+  const [redditFetchStatus, setRedditFetchStatus] = useState<'idle' | 'fetching' | 'success' | 'failed'>('idle');
   
   // Trends state
   const [trends, setTrends] = useState<TrendItem[]>([]);
@@ -153,6 +155,7 @@ export default function Home() {
   const [isLoadingFavorites, setIsLoadingFavorites] = useState(false);
 
   // Load rules for a subreddit (defined BEFORE handleSearch since it's used by it)
+  // NEW: Try client-side Reddit fetch FIRST (browser can access Reddit, Vercel can't)
   const handleLoadRules = useCallback(async (sub: Subreddit) => {
     setSelectedSub(sub);
     setIsLoadingRules(true);
@@ -160,15 +163,84 @@ export default function Home() {
     setSummaryEs('');
     setExpandedRule(null);
     setIsEstimatedRules(false);
+    setDataSource(null);
     setLoadingStep(0);
+    setRedditFetchStatus('idle');
     setActiveTab('rules');
 
     // Animate loading steps
     const step1Timer = setTimeout(() => setLoadingStep(1), 2000);
     const step2Timer = setTimeout(() => setLoadingStep(2), 5000);
 
+    const processResult = (data: any) => {
+      if (data.rules && data.rules.length > 0) {
+        setRules(data.rules);
+        setSummaryEs(data.summaryEs || '');
+        const ds = data.dataSource || null;
+        setDataSource(ds);
+        const isEstimated = ds === 'ai_estimated' || ds === 'fallback';
+        setIsEstimatedRules(isEstimated);
+        if (data.subreddit) {
+          const apiSubs = data.subreddit.subscribers || 0;
+          setSelectedSub(prev => ({ 
+            ...prev, 
+            ...data.subreddit,
+            subscribers: apiSubs > 0 ? apiSubs : prev.subscribers || 0,
+          }));
+        }
+        if (ds === 'reddit_real') {
+          toast.success(`Reglas REALES de r/${sub.name} obtenidas de Reddit y traducidas`);
+        } else if (ds === 'reddit_real_no_translate') {
+          toast.success(`Reglas REALES de r/${sub.name} obtenidas de Reddit (sin traducir)`);
+        } else if (isEstimated) {
+          toast.success(`Reglas de r/${sub.name} estimadas por IA — verificá las oficiales en Reddit`);
+        } else {
+          toast.success(`Reglas de r/${sub.name} cargadas`);
+        }
+      } else if (data.error) {
+        toast.error(data.error || 'Error al cargar reglas');
+      } else {
+        toast.error('No se encontraron reglas para este subreddit');
+      }
+    };
+
     try {
-      const res = await fetch(`/api/subreddit/rules?subreddit=${encodeURIComponent(sub.name)}`);
+      // STEP 1: Try client-side Reddit fetch (browser can access Reddit!)
+      setRedditFetchStatus('fetching');
+      try {
+        const { fetchRedditFromBrowser } = await import('@/lib/reddit-client');
+        const redditResult = await fetchRedditFromBrowser(sub.name);
+        
+        if (redditResult && (redditResult.about || redditResult.rules.length > 0)) {
+          setRedditFetchStatus('success');
+          // Got real data from Reddit! Send to our API for AI translation
+          const res = await fetch('/api/subreddit/rules', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              subreddit: sub.name,
+              about: redditResult.about,
+              rules: redditResult.rules,
+            }),
+          });
+          
+          clearTimeout(step1Timer);
+          clearTimeout(step2Timer);
+          
+          if (res.ok) {
+            const data = await res.json();
+            processResult(data);
+            return;
+          }
+        }
+      } catch (clientErr) {
+        console.log('Client-side Reddit fetch failed:', clientErr);
+      }
+      
+      setRedditFetchStatus('failed');
+
+      // STEP 2: Client-side fetch failed — fall back to server API
+      const res = await fetch(`/api/subreddit/rules?subreddit=${encodeURIComponent(sub.name)}&force=true`);
       clearTimeout(step1Timer);
       clearTimeout(step2Timer);
       
@@ -177,32 +249,7 @@ export default function Home() {
       }
       
       const data = await res.json();
-      if (data.rules && data.rules.length > 0) {
-        setRules(data.rules);
-        setSummaryEs(data.summaryEs || '');
-        // If subscribers is 0 and we got rules, they were AI-generated
-        // But keep the subscriber count from our initial data if the API returned 0
-        const apiSubs = data.subreddit?.subscribers || 0;
-        const isEstimated = apiSubs === 0 && data.rules.length > 0;
-        setIsEstimatedRules(isEstimated);
-        if (data.subreddit) {
-          setSelectedSub(prev => ({ 
-            ...prev, 
-            ...data.subreddit,
-            // Preserve subscriber count from initial data if API returned 0
-            subscribers: apiSubs > 0 ? apiSubs : prev.subscribers || 0,
-          }));
-        }
-        if (isEstimated) {
-          toast.success(`Reglas de r/${sub.name} generadas por IA — verificá las oficiales en Reddit`);
-        } else {
-          toast.success(`Reglas de r/${sub.name} cargadas y traducidas`);
-        }
-      } else if (data.error) {
-        toast.error(data.error || 'Error al cargar reglas');
-      } else {
-        toast.error('No se encontraron reglas para este subreddit');
-      }
+      processResult(data);
     } catch (e) {
       clearTimeout(step1Timer);
       clearTimeout(step2Timer);
@@ -480,16 +527,6 @@ export default function Home() {
                                       <CheckCircle2 className="w-2.5 h-2.5" /> Promo OK
                                     </Badge>
                                   )}
-                                  {sub.allowPromo === false && (
-                                    <Badge variant="outline" className="text-[10px] bg-red-500/10 text-red-400 border-red-500/30 gap-0.5">
-                                      <XCircle className="w-2.5 h-2.5" /> Sin Promo
-                                    </Badge>
-                                  )}
-                                  {sub.requiresVerify && (
-                                    <Badge variant="outline" className="text-[10px] bg-sky-500/10 text-sky-400 border-sky-500/30 gap-0.5">
-                                      <ShieldCheck className="w-2.5 h-2.5" /> Verificación
-                                    </Badge>
-                                  )}
                                 </div>
                                 {sub.description && (
                                   <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
@@ -587,9 +624,9 @@ export default function Home() {
                         animate={{ opacity: 1, y: 0 }}
                         className="text-sm text-muted-foreground"
                       >
-                        {loadingStep === 0 && '🔍 Conectando con Reddit...'}
-                        {loadingStep === 1 && '🤖 La IA está analizando las reglas...'}
-                        {loadingStep === 2 && '🌐 Traduciendo reglas al español...'}
+                        {loadingStep === 0 && '🔍 Obteniendo datos reales de Reddit...'}
+                        {loadingStep === 1 && '🤖 La IA está analizando y traduciendo las reglas...'}
+                        {loadingStep === 2 && '🌐 Finalizando traducción al español...'}
                       </motion.p>
                       <p className="text-xs text-muted-foreground/60">
                         Puede tardar unos segundos si es la primera vez que se carga este subreddit
@@ -657,11 +694,36 @@ export default function Home() {
                               </p>
                             </div>
                           )}
-                          {isEstimatedRules && (
+                          {/* Data Source Indicator — ALWAYS show so user knows where data comes from */}
+                          {dataSource === 'reddit_real' && (
+                            <div className="mt-2 p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
+                              <p className="text-xs text-emerald-400 flex items-start gap-2">
+                                <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+                                Reglas REALES obtenidas directamente de Reddit y traducidas por IA. La información de reglas es confiable.
+                              </p>
+                            </div>
+                          )}
+                          {dataSource === 'reddit_real_no_translate' && (
+                            <div className="mt-2 p-3 rounded-lg bg-sky-500/5 border border-sky-500/20">
+                              <p className="text-xs text-sky-400 flex items-start gap-2">
+                                <Info className="w-4 h-4 shrink-0 mt-0.5" />
+                                Reglas REALES de Reddit (sin traducir — la IA no pudo traducirlas en este momento). La información es confiable pero está en inglés.
+                              </p>
+                            </div>
+                          )}
+                          {(dataSource === 'ai_estimated' || dataSource === 'fallback') && (
                             <div className="mt-2 p-3 rounded-lg bg-amber-500/5 border border-amber-500/20">
                               <p className="text-xs text-amber-400 flex items-start gap-2">
                                 <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                                Estas reglas fueron generadas por IA basándose en el nombre del subreddit y reglas de comunidades similares. Verificá las reglas oficiales directamente en Reddit antes de postear.
+                                No pudimos obtener las reglas reales de Reddit. Estas reglas fueron ESTIMADAS por IA y pueden ser incorrectas. Verificá las reglas oficiales en Reddit antes de postear.
+                              </p>
+                            </div>
+                          )}
+                          {dataSource === null && rules.length > 0 && (
+                            <div className="mt-2 p-3 rounded-lg bg-zinc-500/5 border border-zinc-500/20">
+                              <p className="text-xs text-zinc-400 flex items-start gap-2">
+                                <Info className="w-4 h-4 shrink-0 mt-0.5" />
+                                Fuente de datos desconocida. Verificá las reglas oficiales en Reddit.
                               </p>
                             </div>
                           )}
