@@ -38,14 +38,24 @@ export async function DELETE(request: NextRequest) {
   try {
     if (purgeAll) {
       // Purge ALL cached rules from DB
-      const deletedRules = await db.rule.deleteMany({});
-      const deletedSubs = await db.subreddit.deleteMany({});
-      cache.clear();
-      return NextResponse.json({ 
-        message: 'All cached data purged', 
-        deletedRules: deletedRules.count, 
-        deletedSubs: deletedSubs.count 
-      });
+      try {
+        const deletedRules = await db.rule.deleteMany({});
+        const deletedSubs = await db.subreddit.deleteMany({});
+        cache.clear();
+        return NextResponse.json({ 
+          message: 'All cached data purged', 
+          deletedRules: deletedRules.count, 
+          deletedSubs: deletedSubs.count 
+        });
+      } catch (dbErr) {
+        // DB purge failed, but clear memory cache at least
+        cache.clear();
+        console.error('DB purge error (cleared memory cache):', dbErr);
+        return NextResponse.json({ 
+          message: 'Memory cache cleared (DB purge failed)', 
+          error: String(dbErr),
+        });
+      }
     }
 
     if (!subreddit) {
