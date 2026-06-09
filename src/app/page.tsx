@@ -141,7 +141,7 @@ export default function Home() {
   const [isLoadingRules, setIsLoadingRules] = useState(false);
   const [expandedRule, setExpandedRule] = useState<string | null>(null);
   const [isEstimatedRules, setIsEstimatedRules] = useState(false);
-  const [dataSource, setDataSource] = useState<'reddit_real' | 'reddit_real_no_translate' | 'ai_translation' | 'ai_estimated' | 'fallback' | null>(null);
+  const [dataSource, setDataSource] = useState<'reddit_oauth' | 'reddit_real' | 'reddit_real_no_translate' | 'ai_translation' | 'ai_estimated' | 'fallback' | null>(null);
   const [loadingStep, setLoadingStep] = useState(0); // 0=fetching, 1=analyzing, 2=translating
   const [redditFetchStatus, setRedditFetchStatus] = useState<'idle' | 'fetching' | 'success' | 'failed'>('idle');
   const [showManualPaste, setShowManualPaste] = useState(false);
@@ -184,6 +184,7 @@ export default function Home() {
         const ds = data.dataSource || null;
         setDataSource(ds);
         const isEstimated = ds === 'ai_estimated' || ds === 'fallback';
+        const isVerified = ds === 'reddit_oauth' || ds === 'reddit_real';
         setIsEstimatedRules(isEstimated);
         if (data.subreddit) {
           const apiSubs = data.subreddit.subscribers || 0;
@@ -193,7 +194,9 @@ export default function Home() {
             subscribers: apiSubs > 0 ? apiSubs : prev.subscribers || 0,
           }));
         }
-        if (ds === 'reddit_real') {
+        if (ds === 'reddit_oauth') {
+          toast.success(`Reglas REALES de r/${sub.name} obtenidas via Reddit OAuth API y traducidas`);
+        } else if (ds === 'reddit_real') {
           toast.success(`Reglas REALES de r/${sub.name} obtenidas de Reddit y traducidas`);
         } else if (ds === 'reddit_real_no_translate') {
           toast.success(`Reglas REALES de r/${sub.name} obtenidas de Reddit (sin traducir)`);
@@ -752,6 +755,16 @@ export default function Home() {
                             </div>
                           )}
                           {/* Data Source Indicator — ALWAYS show so user knows where data comes from */}
+                          {dataSource === 'reddit_oauth' && (
+                            <div className="mt-2 p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
+                              <p className="text-xs text-emerald-400 flex items-start gap-2">
+                                <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5" />
+                                <span>
+                                  <strong>Reglas verificadas via Reddit OAuth API.</strong> Estas son las reglas REALES de Reddit, obtenidas con autenticación oficial y traducidas por IA. La información es 100% confiable.
+                                </span>
+                              </p>
+                            </div>
+                          )}
                           {dataSource === 'reddit_real' && (
                             <div className="mt-2 p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
                               <p className="text-xs text-emerald-400 flex items-start gap-2">
