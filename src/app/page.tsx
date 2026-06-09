@@ -144,6 +144,9 @@ export default function Home() {
   const [dataSource, setDataSource] = useState<'reddit_real' | 'reddit_real_no_translate' | 'ai_translation' | 'ai_estimated' | 'fallback' | null>(null);
   const [loadingStep, setLoadingStep] = useState(0); // 0=fetching, 1=analyzing, 2=translating
   const [redditFetchStatus, setRedditFetchStatus] = useState<'idle' | 'fetching' | 'success' | 'failed'>('idle');
+  const [showManualPaste, setShowManualPaste] = useState(false);
+  const [manualPasteText, setManualPasteText] = useState('');
+  const [isProcessingManual, setIsProcessingManual] = useState(false);
   
   // Trends state
   const [trends, setTrends] = useState<TrendItem[]>([]);
@@ -166,6 +169,8 @@ export default function Home() {
     setDataSource(null);
     setLoadingStep(0);
     setRedditFetchStatus('idle');
+    setShowManualPaste(false);
+    setManualPasteText('');
     setActiveTab('rules');
 
     // Animate loading steps
@@ -263,6 +268,53 @@ export default function Home() {
       setIsLoadingRules(false);
     }
   }, []);
+
+  // Handle manual paste of rules
+  const handleManualPaste = useCallback(async () => {
+    if (!manualPasteText.trim() || !selectedSub) return;
+    setIsProcessingManual(true);
+    
+    try {
+      const { parseManualRules } = await import('@/lib/reddit-client');
+      const parsedRules = parseManualRules(manualPasteText);
+      
+      if (parsedRules.length === 0) {
+        toast.error('No se pudieron detectar reglas en el texto. Pegá las reglas separadas por números o líneas.');
+        return;
+      }
+
+      // Send to API for AI translation
+      const res = await fetch('/api/subreddit/rules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subreddit: selectedSub.name,
+          about: null,
+          rules: parsedRules.map(r => ({ short_name: r.name, description: r.textOriginal })),
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.rules && data.rules.length > 0) {
+          setRules(data.rules);
+          setSummaryEs(data.summaryEs || '');
+          setDataSource(data.dataSource);
+          setIsEstimatedRules(data.dataSource === 'ai_estimated' || data.dataSource === 'fallback');
+          if (data.subreddit) {
+            setSelectedSub(prev => ({ ...prev, ...data.subreddit }));
+          }
+          toast.success(`${data.rules.length} reglas reales de r/${selectedSub.name} procesadas y traducidas`);
+          setShowManualPaste(false);
+          setManualPasteText('');
+        }
+      }
+    } catch (e) {
+      toast.error('Error al procesar las reglas pegadas');
+    } finally {
+      setIsProcessingManual(false);
+    }
+  }, [manualPasteText, selectedSub]);
 
   // Search subreddits
   const handleSearch = useCallback(async () => {
@@ -739,6 +791,71 @@ export default function Home() {
                                 <Info className="w-4 h-4 shrink-0 mt-0.5" />
                                 Fuente de datos desconocida. Verificá las reglas oficiales en Reddit.
                               </p>
+                            </div>
+                          )}
+                          {/* Manual Paste Option — shown when rules are estimated or no rules */}
+                          {(dataSource === 'ai_estimated' || dataSource === 'fallback' || (rules.length === 0 && !isLoadingRules)) && !showManualPaste && (
+                            <div className="mt-2 p-3 rounded-lg bg-blue-500/5 border border-blue-500/20">
+                              <p className="text-xs text-blue-400 mb-2 flex items-start gap-2">
+                                <Info className="w-4 h-4 shrink-0 mt-0.5" />
+                                <span>
+                                  <strong>¿Tenés las reglas reales?</strong> Abrí las reglas en Reddit, copialas y pegalas acá para que las traduzcamos fielmente.
+                                </span>
+                              </p>
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-xs border-blue-500/30 text-blue-400 hover:bg-blue-500/10"
+                                  onClick={() => setShowManualPaste(true)}
+                                >
+                                  Pegar reglas manualmente
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-xs"
+                                  asChild
+                                >
+                                  <a href={`https://www.reddit.com/r/${selectedSub.name}/about/rules/`} target="_blank" rel="noopener noreferrer">
+                                    <ExternalLink className="w-3 h-3 mr-1" /> Abrir reglas en Reddit
+                                  </a>
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                          {/* Manual Paste Textarea */}
+                          {showManualPaste && (
+                            <div className="mt-2 p-3 rounded-lg bg-blue-500/5 border border-blue-500/20 space-y-2">
+                              <p className="text-xs text-blue-400 flex items-center gap-1">
+                                <Info className="w-3 h-3" />
+                                Pegá las reglas de r/{selectedSub.name} desde Reddit (texto plano)
+                              </p>
+                              <textarea
+                                className="w-full h-32 rounded-lg bg-background border border-border/50 p-3 text-sm resize-none focus:border-primary/50 focus:outline-none"
+                                placeholder="1. No spam or self-promotion...&#10;2. Must be 18+ to post...&#10;3. Tag your content with appropriate flair...&#10;..."
+                                value={manualPasteText}
+                                onChange={(e) => setManualPasteText(e.target.value)}
+                              />
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  className="text-xs bg-primary hover:bg-primary/90"
+                                  disabled={!manualPasteText.trim() || isProcessingManual}
+                                  onClick={handleManualPaste}
+                                >
+                                  {isProcessingManual ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <CheckCircle2 className="w-3 h-3 mr-1" />}
+                                  {isProcessingManual ? 'Procesando...' : 'Procesar reglas reales'}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="text-xs"
+                                  onClick={() => { setShowManualPaste(false); setManualPasteText(''); }}
+                                >
+                                  Cancelar
+                                </Button>
+                              </div>
                             </div>
                           )}
                         </div>

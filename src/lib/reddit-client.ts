@@ -1,9 +1,9 @@
 // Client-side Reddit data fetcher
-// The user's browser CAN access Reddit, unlike Vercel servers which get blocked.
-// We try multiple approaches:
-// 1. Our own server-side proxy (/api/reddit-proxy) — MOST RELIABLE, no CORS issues
-// 2. Direct browser fetch to Reddit — usually fails (CORS)
+// STRATEGY:
+// 1. Our own server-side proxy (/api/reddit-proxy) — tries from Vercel Edge + Node
+// 2. Direct browser fetch to Reddit — usually fails (CORS) but worth trying  
 // 3. Multiple CORS proxy services as fallback
+// 4. If all fail, user can manually paste rules from Reddit
 
 export interface RedditAboutData {
   title: string;
@@ -36,10 +36,10 @@ export interface ClientRedditResult {
   about: RedditAboutData | null;
   rules: RedditRule[];
   fetchedAt: number;
-  source: 'server_proxy' | 'direct' | 'cors_proxy' | 'unknown';
+  source: 'server_proxy' | 'direct' | 'cors_proxy' | 'manual' | 'unknown';
 }
 
-async function fetchWithTimeout(url: string, timeoutMs = 8000): Promise<Response> {
+async function fetchWithTimeout(url: string, timeoutMs = 10000): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -57,11 +57,11 @@ async function fetchWithTimeout(url: string, timeoutMs = 8000): Promise<Response
 
 /**
  * Fetch Reddit data using our own server-side proxy.
- * This is the MOST RELIABLE method — no CORS issues, server handles retries.
+ * The server tries multiple strategies (Edge + CORS proxies).
  */
 async function fetchViaServerProxy(subreddit: string): Promise<ClientRedditResult | null> {
   try {
-    const res = await fetchWithTimeout(`/api/reddit-proxy?subreddit=${encodeURIComponent(subreddit)}`, 30000);
+    const res = await fetchWithTimeout(`/api/reddit-proxy?subreddit=${encodeURIComponent(subreddit)}`, 35000);
     if (!res.ok) return null;
     
     const data = await res.json();
@@ -99,21 +99,19 @@ async function fetchViaServerProxy(subreddit: string): Promise<ClientRedditResul
   }
 }
 
-// CORS proxies to try if server proxy fails
+// CORS proxies — these run in the user's BROWSER and may work from residential IPs
 const CORS_PROXIES = [
-  // corsproxy.io — generally the most reliable free proxy
+  // corsproxy.io — free tier, works from browser
   'https://corsproxy.io/?',
-  // allorigins — sometimes works
+  // allorigins — alternative
   'https://api.allorigins.win/raw?url=',
-  // cors-anywhere — requires activation but worth trying
-  'https://cors-anywhere.herokuapp.com/',
   // thingproxy
   'https://thingproxy.freeboard.io/fetch/',
 ];
 
 /**
  * Try fetching Reddit directly from browser via CORS proxies.
- * Less reliable than server proxy but worth trying as additional source.
+ * Works when user is on residential IP (not a cloud server).
  */
 async function fetchViaCORSProxy(subreddit: string): Promise<ClientRedditResult | null> {
   const subLower = subreddit.toLowerCase().trim();
@@ -124,12 +122,12 @@ async function fetchViaCORSProxy(subreddit: string): Promise<ClientRedditResult 
 
   for (const proxy of CORS_PROXIES) {
     try {
-      const fullAboutUrl = proxy ? proxy + encodeURIComponent(aboutUrl) : aboutUrl;
-      const fullRulesUrl = proxy ? proxy + encodeURIComponent(rulesUrl) : rulesUrl;
+      const fullAboutUrl = proxy + encodeURIComponent(aboutUrl);
+      const fullRulesUrl = proxy + encodeURIComponent(rulesUrl);
 
       const [aboutRes, rulesRes] = await Promise.all([
-        fetchWithTimeout(fullAboutUrl, 8000).catch(() => null),
-        fetchWithTimeout(fullRulesUrl, 8000).catch(() => null),
+        fetchWithTimeout(fullAboutUrl, 10000).catch(() => null),
+        fetchWithTimeout(fullRulesUrl, 10000).catch(() => null),
       ]);
 
       let about: RedditAboutData | null = null;
@@ -176,26 +174,131 @@ async function fetchViaCORSProxy(subreddit: string): Promise<ClientRedditResult 
 }
 
 /**
+ * Try fetching Reddit directly (no proxy).
+ * This works if Reddit has enabled CORS for their JSON endpoints.
+ */
+async function fetchDirect(subreddit: string): Promise<ClientRedditResult | null> {
+  const subLower = subreddit.toLowerCase().trim();
+  try {
+    const aboutUrl = `https://www.reddit.com/r/${encodeURIComponent(subLower)}/about.json`;
+    const rulesUrl = `https://www.reddit.com/r/${encodeURIComponent(subLower)}/about/rules.json`;
+    
+    const [aboutRes, rulesRes] = await Promise.all([
+      fetchWithTimeout(aboutUrl, 8000).catch(() => null),
+      fetchWithTimeout(rulesUrl, 8000).catch(() => null),
+    ]);
+
+    let about: RedditAboutData | null = null;
+    let rules: RedditRule[] = [];
+
+    if (aboutRes?.ok) {
+      try {
+        const json = await aboutRes.json();
+        if (json.data && !json.data.banned) {
+          about = {
+            title: json.data.title || '',
+            display_name: json.data.display_name || subLower,
+            subscribers: json.data.subscribers || 0,
+            over18: json.data.over18 || false,
+            public_description: json.data.public_description || '',
+            icon_img: json.data.icon_img || null,
+            community_icon: json.data.community_icon || null,
+            banner_img: json.data.banner_img || null,
+            active_user_count: json.data.active_user_count || null,
+            created_utc: json.data.created_utc || 0,
+            banned: false,
+            description: json.data.description || '',
+          };
+        }
+      } catch {}
+    }
+
+    if (rulesRes?.ok) {
+      try {
+        const json = await rulesRes.json();
+        rules = json.rules || [];
+      } catch {}
+    }
+
+    if (about || rules.length > 0) {
+      return { about, rules, fetchedAt: Date.now(), source: 'direct' };
+    }
+  } catch {}
+  return null;
+}
+
+/**
+ * Parse manually pasted rules text into structured format.
+ * User can paste the rules from Reddit's rules page.
+ */
+export function parseManualRules(text: string): { name: string; textOriginal: string }[] {
+  if (!text.trim()) return [];
+  
+  // Try to parse structured text (numbered rules, or rules separated by blank lines)
+  const rules: { name: string; textOriginal: string }[] = [];
+  
+  // Split by common rule separators
+  const lines = text.split('\n');
+  let currentRule: { name: string; textOriginal: string } | null = null;
+  
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    
+    // Check if this is a rule header (numbered, or starts with common patterns)
+    const ruleMatch = trimmed.match(/^(\d+)\.\s*(.+)/) || 
+                      trimmed.match(/^Rule\s*(\d+)[:.]\s*(.+)/i) ||
+                      trimmed.match(/^[-•]\s*(.+)/);
+    
+    if (ruleMatch) {
+      // Save previous rule
+      if (currentRule) rules.push(currentRule);
+      
+      const ruleText = ruleMatch[2] || ruleMatch[1] || trimmed;
+      currentRule = { name: ruleText.substring(0, 80), textOriginal: trimmed };
+    } else if (currentRule) {
+      // Continuation of previous rule
+      currentRule.textOriginal += '\n' + trimmed;
+    } else {
+      // First rule without number
+      currentRule = { name: trimmed.substring(0, 80), textOriginal: trimmed };
+    }
+  }
+  
+  if (currentRule) rules.push(currentRule);
+  
+  return rules;
+}
+
+/**
  * Main entry point: Fetch Reddit subreddit data.
- * Priority: Server proxy → CORS proxies
+ * Tries multiple strategies in order of reliability.
  */
 export async function fetchRedditFromBrowser(subreddit: string): Promise<ClientRedditResult | null> {
   const subLower = subreddit.toLowerCase().trim();
   if (!subLower || /[^a-zA-Z0-9_]/.test(subLower)) return null;
 
-  // STRATEGY 1: Use our own server-side proxy (MOST RELIABLE)
-  console.log(`[reddit-client] Fetching r/${subLower} via server proxy...`);
+  // STRATEGY 1: Direct fetch (Reddit sometimes allows CORS from browsers)
+  console.log(`[reddit-client] Trying direct fetch for r/${subLower}...`);
+  const directResult = await fetchDirect(subLower);
+  if (directResult && (directResult.about || directResult.rules.length > 0)) {
+    console.log(`[reddit-client] Direct fetch succeeded!`);
+    return directResult;
+  }
+
+  // STRATEGY 2: Our server-side proxy (Edge + CORS intermediaries)
+  console.log(`[reddit-client] Trying server proxy for r/${subLower}...`);
   const serverResult = await fetchViaServerProxy(subLower);
   if (serverResult && (serverResult.about || serverResult.rules.length > 0)) {
-    console.log(`[reddit-client] Got data via server proxy: about=${!!serverResult.about}, rules=${serverResult.rules.length}`);
+    console.log(`[reddit-client] Server proxy succeeded!`);
     return serverResult;
   }
 
-  // STRATEGY 2: Try CORS proxies
-  console.log(`[reddit-client] Server proxy failed, trying CORS proxies...`);
+  // STRATEGY 3: Browser CORS proxies
+  console.log(`[reddit-client] Trying CORS proxies for r/${subLower}...`);
   const corsResult = await fetchViaCORSProxy(subLower);
   if (corsResult && (corsResult.about || corsResult.rules.length > 0)) {
-    console.log(`[reddit-client] Got data via CORS proxy: about=${!!corsResult.about}, rules=${corsResult.rules.length}`);
+    console.log(`[reddit-client] CORS proxy succeeded!`);
     return corsResult;
   }
 
