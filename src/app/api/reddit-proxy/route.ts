@@ -1,20 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// RUN ON EDGE RUNTIME — different network/IPs than regular Vercel functions
-// This might bypass Reddit's IP blocks for cloud hosting providers
+// Edge runtime — runs on Cloudflare's network
 export const runtime = 'edge';
 
 /**
- * Edge-based Reddit proxy — runs on Cloudflare's network (not Vercel's).
- * Tries MULTIPLE strategies to fetch real Reddit data.
+ * Edge-based Reddit proxy that uses CORS proxy services as intermediaries.
+ * Since Reddit blocks direct requests from cloud servers, we route through
+ * CORS proxy services which run on residential-like IPs.
+ * 
+ * Flow: Vercel Edge → CORS Proxy → Reddit API
  */
-
-const USER_AGENTS = {
-  chrome: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-  firefox: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0',
-  bot: 'linux:reddit-rule-scanner:v1.0 (by /u/reddit-rule-scanner)',
-  generic: 'Mozilla/5.0 (compatible; RedditRuleScanner/1.0)',
-};
 
 interface RedditProxyResult {
   about: any | null;
@@ -24,17 +19,14 @@ interface RedditProxyResult {
   runtime: string;
 }
 
-async function tryFetch(url: string, userAgent: string, timeoutMs: number): Promise<Response | null> {
+async function tryFetch(url: string, timeoutMs: number): Promise<Response | null> {
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     const res = await fetch(url, {
       signal: controller.signal,
       headers: {
-        'User-Agent': userAgent,
         'Accept': 'application/json',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Cache-Control': 'no-cache',
       },
     });
     clearTimeout(timer);
@@ -43,6 +35,13 @@ async function tryFetch(url: string, userAgent: string, timeoutMs: number): Prom
     return null;
   }
 }
+
+// CORS proxy services to use as intermediaries
+const CORS_PROXIES = [
+  { prefix: 'https://api.allorigins.win/raw?url=', name: 'allorigins' },
+  { prefix: 'https://corsproxy.io/?', name: 'corsproxy' },
+  { prefix: 'https://thingproxy.freeboard.io/fetch/', name: 'thingproxy' },
+];
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -57,24 +56,21 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid subreddit name' }, { status: 400 });
   }
 
-  // Strategies to try in order
-  const strategies = [
-    { aboutUrl: `https://www.reddit.com/r/${subLower}/about.json`, rulesUrl: `https://www.reddit.com/r/${subLower}/about/rules.json`, ua: USER_AGENTS.chrome, timeout: 8000, label: 'www+chrome' },
-    { aboutUrl: `https://old.reddit.com/r/${subLower}/about.json`, rulesUrl: `https://old.reddit.com/r/${subLower}/about/rules.json`, ua: USER_AGENTS.chrome, timeout: 8000, label: 'old+chrome' },
-    { aboutUrl: `https://www.reddit.com/r/${subLower}/about.json`, rulesUrl: `https://www.reddit.com/r/${subLower}/about/rules.json`, ua: USER_AGENTS.firefox, timeout: 8000, label: 'www+firefox' },
-    { aboutUrl: `https://api.reddit.com/r/${subLower}/about`, rulesUrl: `https://api.reddit.com/r/${subLower}/about/rules`, ua: USER_AGENTS.bot, timeout: 8000, label: 'api+bot' },
-    { aboutUrl: `https://www.reddit.com/r/${subLower}/about.json`, rulesUrl: `https://www.reddit.com/r/${subLower}/about/rules.json`, ua: USER_AGENTS.bot, timeout: 10000, label: 'www+bot' },
-  ];
+  const aboutUrl = `https://www.reddit.com/r/${encodeURIComponent(subLower)}/about.json`;
+  const rulesUrl = `https://www.reddit.com/r/${encodeURIComponent(subLower)}/about/rules.json`;
 
   let about: any = null;
   let rules: any[] = [];
   let source = '';
 
-  for (const strategy of strategies) {
-    // Fetch both endpoints in parallel
+  // Try each CORS proxy
+  for (const proxy of CORS_PROXIES) {
+    const fullAboutUrl = proxy.prefix + encodeURIComponent(aboutUrl);
+    const fullRulesUrl = proxy.prefix + encodeURIComponent(rulesUrl);
+
     const [aboutRes, rulesRes] = await Promise.all([
-      tryFetch(strategy.aboutUrl, strategy.ua, strategy.timeout),
-      tryFetch(strategy.rulesUrl, strategy.ua, strategy.timeout),
+      tryFetch(fullAboutUrl, 12000),
+      tryFetch(fullRulesUrl, 12000),
     ]);
 
     let aboutData: any = null;
@@ -101,14 +97,38 @@ export async function GET(request: NextRequest) {
     if (aboutData || rulesData.length > 0) {
       about = aboutData || about;
       rules = rulesData.length > 0 ? rulesData : rules;
-      source = strategy.label;
-      
-      // If we got both, we're done
+      source = `edge+${proxy.name}`;
       if (about && rules.length > 0) break;
     }
   }
 
-  const gotData = !!(about || rules.length > 0);
+  // Also try direct fetch as a last resort (probably won't work but worth trying)
+  if (!about && rules.length === 0) {
+    const [aboutRes, rulesRes] = await Promise.all([
+      tryFetch(aboutUrl, 10000),
+      tryFetch(rulesUrl, 10000),
+    ]);
+
+    if (aboutRes?.ok) {
+      try {
+        const json = await aboutRes.json();
+        if (json.data && !json.data.banned) {
+          about = json.data;
+          source = 'edge+direct';
+        }
+      } catch {}
+    }
+
+    if (rulesRes?.ok) {
+      try {
+        const json = await rulesRes.json();
+        if (json.rules && Array.isArray(json.rules)) {
+          rules = json.rules;
+          source = source || 'edge+direct';
+        }
+      } catch {}
+    }
+  }
 
   const result: RedditProxyResult = {
     about: about ? {
