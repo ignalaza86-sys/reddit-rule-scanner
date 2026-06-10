@@ -73,41 +73,47 @@ async function fetchViaCloudflareWorker(subreddit: string): Promise<ClientReddit
   if (!subLower || /[^a-zA-Z0-9_]/.test(subLower)) return null;
 
   try {
-    const url = `${workerUrl}?subreddit=${encodeURIComponent(subLower)}`;
+    // Use the /both endpoint to get about + rules in one call
+    const url = `${workerUrl}/both?subreddit=${encodeURIComponent(subLower)}`;
     console.log(`[reddit-client] Trying Cloudflare Worker for r/${subLower}...`);
     
     const res = await fetchWithTimeout(url, 15000);
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.log(`[reddit-client] Cloudflare Worker returned ${res.status}`);
+      return null;
+    }
 
     const data = await res.json();
 
     if (!data.about && (!data.rules || data.rules.length === 0)) return null;
 
+    // Worker returns normalized fields; map back to our RedditAboutData interface
     const about: RedditAboutData | null = data.about ? {
       title: data.about.title || '',
-      display_name: data.about.display_name || subreddit,
+      display_name: data.about.name || data.about.display_name || subreddit,
       subscribers: data.about.subscribers || 0,
       over18: data.about.over18 || false,
-      public_description: data.about.public_description || '',
-      icon_img: data.about.icon_img || null,
-      community_icon: data.about.community_icon || null,
-      banner_img: data.about.banner_img || null,
-      active_user_count: data.about.active_user_count || null,
-      created_utc: data.about.created_utc || 0,
-      banned: false,
+      public_description: data.about.description || data.about.public_description || '',
+      icon_img: data.about.iconImage || data.about.icon_img || null,
+      community_icon: data.about.iconImage || data.about.community_icon || null,
+      banner_img: data.about.bannerImage || data.about.banner_img || null,
+      active_user_count: data.about.activeUsers || data.about.active_user_count || null,
+      created_utc: data.about.createdUtc || data.about.created_utc || 0,
+      banned: data.about.isBanned || false,
       description: data.about.description || '',
-      submit_text: data.about.submit_text || '',
+      submit_text: '',
     } : null;
 
+    // Worker returns { index, name, description, reason, priority, createdUtc }
     const rules: RedditRule[] = (data.rules || []).map((r: any) => ({
-      short_name: r.short_name || '',
+      short_name: r.name || r.short_name || '',
       description: r.description || '',
       priority: r.priority || 0,
-      created_utc: r.created_utc || 0,
-      violation_reason: r.violation_reason || '',
+      created_utc: r.createdUtc || r.created_utc || 0,
+      violation_reason: r.reason || r.violation_reason || '',
     }));
 
-    console.log(`[reddit-client] Cloudflare Worker succeeded! Got ${rules.length} rules`);
+    console.log(`[reddit-client] Cloudflare Worker succeeded! Got ${rules.length} rules for r/${subLower}`);
     return { about, rules, fetchedAt: Date.now(), source: 'cloudflare_worker' };
   } catch (e) {
     console.log('[reddit-client] Cloudflare Worker failed:', e instanceof Error ? e.message : 'unknown');

@@ -8,7 +8,8 @@ import {
   Eye, Zap, ChevronDown, ChevronUp, Heart, BookmarkPlus,
   BookmarkCheck, RefreshCw, ArrowRight, Info, Tag, Clock,
   Calendar, MessageSquare, Users, BarChart3, Sparkles,
-  ShieldCheck, ShieldAlert, ShieldX, Wifi, WifiOff
+  ShieldCheck, ShieldAlert, ShieldX, Wifi, WifiOff, DollarSign,
+  CreditCard
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -19,6 +20,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Progress } from '@/components/ui/progress';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, DialogClose } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 
 // Types
@@ -147,6 +149,9 @@ export default function Home() {
   const [showManualPaste, setShowManualPaste] = useState(false);
   const [manualPasteText, setManualPasteText] = useState('');
   const [isProcessingManual, setIsProcessingManual] = useState(false);
+  const [showPricingDialog, setShowPricingDialog] = useState(false);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [userPlan, setUserPlan] = useState<'free' | 'pro'>('free');
   
   // Trends state
   const [trends, setTrends] = useState<TrendItem[]>([]);
@@ -439,6 +444,65 @@ export default function Home() {
 
   const isFavorited = (subName: string) => favorites.some(f => f.subreddit.name === subName);
 
+  // Handle payment flow
+  const handlePayment = useCallback(async (provider: 'stripe' | 'mercadopago', planType: string) => {
+    setIsProcessingPayment(true);
+    try {
+      // Get or create anon ID
+      let anonId = '';
+      if (typeof window !== 'undefined') {
+        anonId = localStorage.getItem('rrs_anon_id') || '';
+        if (!anonId) {
+          anonId = 'anon_' + Math.random().toString(36).substring(2) + Date.now().toString(36);
+          localStorage.setItem('rrs_anon_id', anonId);
+        }
+      }
+
+      const endpoint = provider === 'stripe' ? '/api/stripe/checkout' : '/api/mercadopago/checkout';
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ anonId, planType }),
+      });
+
+      const data = await res.json();
+
+      if (data.url) {
+        // Redirect to payment page
+        window.location.href = data.url;
+      } else {
+        toast.error('Error al iniciar el pago. Intentá de nuevo.');
+      }
+    } catch (e) {
+      console.error('Payment error:', e);
+      toast.error('Error de conexión. Intentá de nuevo.');
+    } finally {
+      setIsProcessingPayment(false);
+    }
+  }, []);
+
+  // Check checkout status on load
+  useState(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const checkout = params.get('checkout');
+      if (checkout === 'success') {
+        toast.success('¡Pago exitoso! Tu cuenta fue actualizada a Pro.');
+        setUserPlan('pro');
+        window.history.replaceState({}, '', '/');
+      } else if (checkout === 'cancelled') {
+        toast.info('Pago cancelado.');
+        window.history.replaceState({}, '', '/');
+      } else if (checkout === 'pending') {
+        toast.info('Pago pendiente. Te notificaremos cuando se confirme.');
+        window.history.replaceState({}, '', '/');
+      } else if (checkout === 'error') {
+        toast.error('Hubo un error con el pago. Contactanos.');
+        window.history.replaceState({}, '', '/');
+      }
+    }
+  });
+
   return (
     <TooltipProvider>
       <div className="min-h-screen flex flex-col bg-background">
@@ -458,6 +522,127 @@ export default function Home() {
               <Badge variant="outline" className="text-xs gap-1 border-primary/30 text-primary">
                 <Sparkles className="w-3 h-3" /> IA Powered
               </Badge>
+              {userPlan === 'pro' ? (
+                <Badge className="text-xs gap-1 bg-gradient-to-r from-amber-500 to-orange-500 text-white border-0">
+                  <Zap className="w-3 h-3" /> PRO
+                </Badge>
+              ) : (
+                <Dialog open={showPricingDialog} onOpenChange={setShowPricingDialog}>
+                  <DialogTrigger asChild>
+                    <Button size="sm" className="gap-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white border-0 text-xs h-7">
+                      <Zap className="w-3 h-3" /> Pro
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-lg bg-card border-border/50">
+                    <DialogHeader>
+                      <DialogTitle className="flex items-center gap-2">
+                        <Zap className="w-5 h-5 text-amber-400" />
+                        Desbloqueá Reddit Rule Scanner Pro
+                      </DialogTitle>
+                      <DialogDescription>
+                        Acceso ilimitado a reglas reales, traducciones y exportaciones
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 mt-4">
+                      {/* Free Tier */}
+                      <div className="p-4 rounded-lg border border-border/50 bg-background/50 opacity-70">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="font-semibold text-sm">Gratis</h4>
+                            <p className="text-xs text-muted-foreground">5 búsquedas/día, 3 reglas/día</p>
+                          </div>
+                          <span className="text-sm font-bold">$0</span>
+                        </div>
+                      </div>
+                      {/* Monthly */}
+                      <div className="p-4 rounded-lg border-2 border-amber-500/50 bg-amber-500/5 relative">
+                        <Badge className="absolute -top-2 right-4 bg-amber-500 text-white text-[10px] border-0">POPULAR</Badge>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="font-semibold text-sm flex items-center gap-1.5">
+                              <Zap className="w-4 h-4 text-amber-400" /> Pro Mensual
+                            </h4>
+                            <p className="text-xs text-muted-foreground">Ilimitado — cancelá cuando quieras</p>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-lg font-bold">$9.99</span>
+                            <span className="text-xs text-muted-foreground">/mes</span>
+                          </div>
+                        </div>
+                        <div className="flex gap-2 mt-3">
+                          <Button
+                            size="sm"
+                            className="flex-1 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white text-xs"
+                            disabled={isProcessingPayment}
+                            onClick={() => handlePayment('stripe', 'pro_monthly')}
+                          >
+                            {isProcessingPayment ? <Loader2 className="w-3 h-3 animate-spin" /> : <CreditCard className="w-3 h-3" />}
+                            Tarjeta (Stripe)
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="flex-1 border-sky-500/50 text-sky-400 hover:bg-sky-500/10 text-xs"
+                            disabled={isProcessingPayment}
+                            onClick={() => handlePayment('mercadopago', 'pro_monthly')}
+                          >
+                            {isProcessingPayment ? <Loader2 className="w-3 h-3 animate-spin" /> : <DollarSign className="w-3 h-3" />}
+                            MercadoPago
+                          </Button>
+                        </div>
+                      </div>
+                      {/* Yearly */}
+                      <div className="p-4 rounded-lg border border-border/50 bg-background/50">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="font-semibold text-sm">Pro Anual</h4>
+                            <p className="text-xs text-muted-foreground">33% descuento — $6.67/mes</p>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-lg font-bold">$79.99</span>
+                            <span className="text-xs text-muted-foreground">/año</span>
+                          </div>
+                        </div>
+                        <div className="flex gap-2 mt-3">
+                          <Button
+                            size="sm"
+                            className="flex-1 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white text-xs"
+                            disabled={isProcessingPayment}
+                            onClick={() => handlePayment('stripe', 'pro_yearly')}
+                          >
+                            {isProcessingPayment ? <Loader2 className="w-3 h-3 animate-spin" /> : <CreditCard className="w-3 h-3" />}
+                            Tarjeta
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="flex-1 border-sky-500/50 text-sky-400 hover:bg-sky-500/10 text-xs"
+                            disabled={isProcessingPayment}
+                            onClick={() => handlePayment('mercadopago', 'pro_yearly')}
+                          >
+                            {isProcessingPayment ? <Loader2 className="w-3 h-3 animate-spin" /> : <DollarSign className="w-3 h-3" />}
+                            MercadoPago
+                          </Button>
+                        </div>
+                      </div>
+                      {/* Pro features list */}
+                      <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
+                        <p className="text-xs font-medium text-emerald-400 mb-2">Todo lo que desbloqueás con Pro:</p>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          {[
+                            'Búsquedas ilimitadas', 'Reglas ilimitadas', 'Exportar reglas (PDF)', 
+                            'Detección de tendencias', 'Sin publicidad', 'Soporte prioritario'
+                          ].map(f => (
+                            <span key={f} className="text-xs text-foreground/80 flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-400" /> {f}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              )}
             </div>
           </div>
         </header>

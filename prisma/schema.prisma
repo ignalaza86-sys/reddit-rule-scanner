@@ -81,10 +81,13 @@ model User {
   email            String?  @unique
   name             String?
   plan             String   @default("free")
-  stripeCustomerId String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  usage            Usage[]
+  stripeCustomerId    String?
+  mercadopagoEmail    String?
+  planExpiresAt      DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  usage              Usage[]
+  payments           Payment[]
 
   @@map("users")
 }
@@ -98,4 +101,22 @@ model Usage {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("usage")
+}
+
+model Payment {
+  id                String   @id @default(cuid())
+  userId            String
+  provider          String   // "stripe" | "mercadopago"
+  providerPaymentId String?  // Stripe PaymentIntent ID or MP preference ID
+  amount            Float    // in USD or ARS
+  currency          String   @default("USD")
+  status            String   @default("pending") // pending | completed | failed | refunded
+  planType          String   @default("pro_monthly") // pro_monthly | pro_yearly
+  periodStart       DateTime?
+  periodEnd         DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
 }

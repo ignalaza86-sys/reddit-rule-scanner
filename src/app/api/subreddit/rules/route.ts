@@ -657,7 +657,7 @@ REGLAS ESTRICTAS:
       try {
         console.log(`[rules] Fetching r/${subLower} via Cloudflare Worker proxy...`);
         const workerRes = await fetchWithTimeout(
-          `${CF_WORKER_URL}?subreddit=${encodeURIComponent(subLower)}`,
+          `${CF_WORKER_URL}/both?subreddit=${encodeURIComponent(subLower)}`,
           { headers: { 'Accept': 'application/json' } },
           15000
         );
@@ -669,14 +669,15 @@ REGLAS ESTRICTAS:
             const about = workerData.about;
             const rawCfRules = workerData.rules || [];
 
+            // Worker returns normalized fields — map to our internal format
             let cfSubData: any = {
               title: about?.title || curatedData?.displayName || `r/${subLower}`,
-              display_name: about?.display_name || subLower,
+              display_name: about?.name || about?.display_name || subLower,
               subscribers: about?.subscribers || curatedData?.subscribers || 0,
               over18: about?.over18 ?? true,
-              public_description: about?.public_description || curatedData?.description || '',
-              icon_img: about?.icon_img || null,
-              community_icon: about?.community_icon || null,
+              public_description: about?.description || about?.public_description || curatedData?.description || '',
+              icon_img: about?.iconImage || about?.icon_img || null,
+              community_icon: about?.iconImage || about?.community_icon || null,
             };
 
             if (curatedData && (cfSubData.subscribers === 0 || cfSubData.subscribers == null)) {
@@ -684,7 +685,7 @@ REGLAS ESTRICTAS:
             }
 
             const cfExtractedRules = rawCfRules.map((rule: any) => ({
-              name: rule.short_name || 'Regla',
+              name: rule.name || rule.short_name || 'Regla',
               textOriginal: rule.description || '',
             }));
 
@@ -735,14 +736,14 @@ REGLAS ESTRICTAS:
                     }
                     const savedRules = await db.rule.findMany({ where: { subredditId: savedSub.id } });
                     const fullSub = await db.subreddit.findUnique({ where: { id: savedSub.id } });
-                    const result = { subreddit: fullSub, rules: savedRules, summaryEs: aiResult.summaryEs || '', dataSource: 'reddit_oauth' as DataSource, cached: false };
+                    const result = { subreddit: fullSub, rules: savedRules, summaryEs: aiResult.summaryEs || '', dataSource: 'reddit_real' as DataSource, cached: false };
                     cache.set(`rules:${subLower}`, result, CACHE_TTL.rules);
                     return NextResponse.json(result);
                   } catch (dbErr) {
                     const rules = aiResult.rules.map((r: any, i: number) => ({
                       id: `cf-${i}`, ruleName: r.name || 'Regla', ruleTextOriginal: cfExtractedRules.find((er: any) => er.name === r.name)?.textOriginal || r.textOriginal || '', ruleTextEs: r.textEs || '', category: r.keyRuleType || null, isKeyRule: r.isKeyRule || false, keyRuleType: r.keyRuleType || null, aiExplanation: r.aiExplanation || '',
                     }));
-                    const result = { subreddit: { name: subLower, displayName: cfSubData.title || curatedData?.displayName || `r/${subLower}`, subscribers: cfSubData.subscribers || curatedData?.subscribers || 0, over18: cfSubData.over18 || true, allowPromo: aiResult.allowPromo ?? null, requiresVerify: aiResult.requiresVerify ?? null }, rules, summaryEs: aiResult.summaryEs || '', dataSource: 'reddit_oauth' as DataSource, cached: false };
+                    const result = { subreddit: { name: subLower, displayName: cfSubData.title || curatedData?.displayName || `r/${subLower}`, subscribers: cfSubData.subscribers || curatedData?.subscribers || 0, over18: cfSubData.over18 || true, allowPromo: aiResult.allowPromo ?? null, requiresVerify: aiResult.requiresVerify ?? null }, rules, summaryEs: aiResult.summaryEs || '', dataSource: 'reddit_real' as DataSource, cached: false };
                     cache.set(`rules:${subLower}`, result, CACHE_TTL.rules);
                     return NextResponse.json(result);
                   }

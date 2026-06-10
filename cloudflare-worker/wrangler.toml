@@ -1,0 +1,26 @@
+name = "reddit-rule-proxy"
+main = "reddit-proxy.js"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Routes - customize with your subdomain
+# routes = [
+#   { pattern = "reddit-proxy.reddit-rule-scanner.online/*", zone_name = "reddit-rule-scanner.online" }
+# ]
+
+[vars]
+# ALLOWED_ORIGINS = "https://reddit-rule-scanner.online,https://www.reddit-rule-scanner.online"
+
+# Secrets (set via `wrangler secret put`):
+# API_KEY - Optional API key for authentication
+
+# Development
+[env.dev]
+name = "reddit-rule-proxy-dev"
+
+# Production
+[env.production]
+name = "reddit-rule-proxy"
+# routes = [
+#   { pattern = "reddit-proxy.reddit-rule-scanner.online/*", zone_name = "reddit-rule-scanner.online" }
+# ]
