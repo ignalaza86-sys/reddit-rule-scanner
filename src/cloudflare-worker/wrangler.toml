@@ -1,0 +1,10 @@
+name = "reddit-rule-proxy"
+main = "reddit-proxy.js"
+compatibility_date = "2024-12-01"
+
+# KV Namespace for caching subreddit data
+# Run: npx wrangler kv namespace create CACHE
+# Then replace the id below with the one it gives you
+[[kv_namespaces]]
+binding = "CACHE"
+id = "PLACEHOLDER_RUN_WRANGLER_KV_CREATE"
