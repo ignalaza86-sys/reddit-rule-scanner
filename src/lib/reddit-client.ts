@@ -388,20 +388,21 @@ export async function fetchRedditFromBrowser(subreddit: string): Promise<ClientR
     return cachedResult;
   }
 
-  // STRATEGY 2: Direct fetch from Reddit (browser has residential IP — NOT blocked!)
-  console.log(`[reddit-client] No cache, trying direct fetch for r/${subLower}...`);
-  const directResult = await fetchDirectFromReddit(subLower);
-  if (directResult && (directResult.about || directResult.rules.length > 0)) {
-    console.log(`[reddit-client] Direct fetch succeeded!`);
-    return directResult;
-  }
-
-  // STRATEGY 3: CORS proxies (backup for when direct fails)
-  console.log(`[reddit-client] Trying CORS proxies for r/${subLower}...`);
+  // STRATEGY 2: CORS proxies (primary client-side method — Reddit blocks direct browser fetches via CORS)
+  console.log(`[reddit-client] No cache, trying CORS proxies for r/${subLower}...`);
   const corsResult = await fetchViaCORSProxy(subLower);
   if (corsResult && (corsResult.about || corsResult.rules.length > 0)) {
     console.log(`[reddit-client] CORS proxy succeeded!`);
     return corsResult;
+  }
+
+  // STRATEGY 3: Direct fetch from Reddit (will likely fail due to CORS from browser,
+  // but works in some environments like extensions or if Reddit adds CORS headers)
+  console.log(`[reddit-client] Trying direct fetch for r/${subLower}...`);
+  const directResult = await fetchDirectFromReddit(subLower);
+  if (directResult && (directResult.about || directResult.rules.length > 0)) {
+    console.log(`[reddit-client] Direct fetch succeeded!`);
+    return directResult;
   }
 
   // STRATEGY 4: Server-side proxy (usually fails from Vercel but worth trying)
