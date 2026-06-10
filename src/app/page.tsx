@@ -278,17 +278,65 @@ export default function Home() {
     }
   }, []);
 
-  // Handle manual paste of rules
+  // Handle manual paste of rules (supports both JSON and plain text)
   const handleManualPaste = useCallback(async () => {
     if (!manualPasteText.trim() || !selectedSub) return;
     setIsProcessingManual(true);
     
     try {
-      const { parseManualRules } = await import('@/lib/reddit-client');
-      const parsedRules = parseManualRules(manualPasteText);
+      let rulesToSend: { short_name: string; description: string }[] = [];
+      let aboutToSend: any = null;
       
-      if (parsedRules.length === 0) {
-        toast.error('No se pudieron detectar reglas en el texto. Pegá las reglas separadas por números o líneas.');
+      // Try to parse as JSON first (user pasted from rules.json or about.json)
+      const trimmed = manualPasteText.trim();
+      try {
+        const jsonData = JSON.parse(trimmed);
+        
+        // Check if it's Reddit rules.json format: { "rules": [...] }
+        if (jsonData.rules && Array.isArray(jsonData.rules)) {
+          rulesToSend = jsonData.rules
+            .filter((r: any) => r.short_name || r.description)
+            .map((r: any) => ({
+              short_name: r.short_name || 'Regla',
+              description: r.description || '',
+            }));
+          console.log(`[manual-paste] Parsed JSON rules: ${rulesToSend.length} rules found`);
+        }
+        // Check if it's Reddit about.json format: { "data": { ... } }
+        else if (jsonData.data && typeof jsonData.data === 'object') {
+          aboutToSend = jsonData.data;
+          console.log(`[manual-paste] Parsed JSON about data for r/${aboutToSend.display_name || selectedSub.name}`);
+        }
+        // Check if it's a direct array of rules
+        else if (Array.isArray(jsonData)) {
+          rulesToSend = jsonData
+            .filter((r: any) => r.short_name || r.description || r.name)
+            .map((r: any) => ({
+              short_name: r.short_name || r.name || 'Regla',
+              description: r.description || r.textOriginal || '',
+            }));
+          console.log(`[manual-paste] Parsed JSON array: ${rulesToSend.length} rules found`);
+        }
+      } catch {
+        // Not valid JSON — parse as plain text
+        console.log('[manual-paste] Not JSON, parsing as plain text...');
+      }
+      
+      // If JSON didn't yield rules, try plain text parsing
+      if (rulesToSend.length === 0 && !aboutToSend) {
+        const { parseManualRules } = await import('@/lib/reddit-client');
+        const parsedRules = parseManualRules(manualPasteText);
+        
+        if (parsedRules.length === 0) {
+          toast.error('No se pudieron detectar reglas. Pegá el JSON de rules.json o las reglas en texto plano.');
+          return;
+        }
+        
+        rulesToSend = parsedRules.map(r => ({ short_name: r.name, description: r.textOriginal }));
+      }
+      
+      if (rulesToSend.length === 0 && !aboutToSend) {
+        toast.error('No se encontraron reglas en lo que pegaste. Probá pegar el contenido de rules.json desde Reddit.');
         return;
       }
 
@@ -298,8 +346,8 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           subreddit: selectedSub.name,
-          about: null,
-          rules: parsedRules.map(r => ({ short_name: r.name, description: r.textOriginal })),
+          about: aboutToSend,
+          rules: rulesToSend,
         }),
       });
 
@@ -313,12 +361,21 @@ export default function Home() {
           if (data.subreddit) {
             setSelectedSub(prev => ({ ...prev, ...data.subreddit }));
           }
-          toast.success(`${data.rules.length} reglas reales de r/${selectedSub.name} procesadas y traducidas`);
+          toast.success(`${data.rules.length} reglas REALES de r/${selectedSub.name} procesadas y traducidas!`);
           setShowManualPaste(false);
           setManualPasteText('');
+        } else if (aboutToSend && !data.rules?.length) {
+          // Got about data but no rules — at least update the subreddit info
+          if (data.subreddit) {
+            setSelectedSub(prev => ({ ...prev, ...data.subreddit }));
+          }
+          toast.info('Info del subreddit actualizada, pero no se encontraron reglas. Probá pegar el JSON de rules.json.');
         }
+      } else {
+        toast.error('Error al procesar las reglas. Intentá de nuevo.');
       }
     } catch (e) {
+      console.error('Manual paste error:', e);
       toast.error('Error al procesar las reglas pegadas');
     } finally {
       setIsProcessingManual(false);
@@ -992,59 +1049,106 @@ export default function Home() {
                               </p>
                             </div>
                           )}
-                          {/* Manual Paste Option — shown when rules are estimated or no rules */}
-                          {(dataSource === 'ai_estimated' || dataSource === 'fallback' || (rules.length === 0 && !isLoadingRules)) && !showManualPaste && (
-                            <div className="mt-2 p-3 rounded-lg bg-blue-500/5 border border-blue-500/20">
-                              <p className="text-xs text-blue-400 mb-2 flex items-start gap-2">
-                                <Info className="w-4 h-4 shrink-0 mt-0.5" />
-                                <span>
-                                  <strong>¿Tenés las reglas reales?</strong> Abrí las reglas en Reddit, copialas y pegalas acá para que las traduzcamos fielmente.
-                                </span>
-                              </p>
-                              <div className="flex gap-2">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="text-xs border-blue-500/30 text-blue-400 hover:bg-blue-500/10"
-                                  onClick={() => setShowManualPaste(true)}
-                                >
-                                  Pegar reglas manualmente
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="text-xs"
-                                  asChild
-                                >
-                                  <a href={`https://www.reddit.com/r/${selectedSub.name}/about/rules/`} target="_blank" rel="noopener noreferrer">
-                                    <ExternalLink className="w-3 h-3 mr-1" /> Abrir reglas en Reddit
-                                  </a>
-                                </Button>
+                          {/* GET REAL RULES — always show this option */}
+                          {!showManualPaste && (
+                            <div className="mt-3 p-4 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
+                              <div className="flex items-start gap-3">
+                                <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0 mt-0.5">
+                                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                                </div>
+                                <div className="flex-1">
+                                  <h4 className="text-sm font-semibold text-emerald-400">Obtener reglas REALES de Reddit</h4>
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    Reddit bloquea nuestra conexión desde el servidor. Pero tu navegador puede acceder directamente. 
+                                    Seguí estos 3 pasos para obtener las reglas 100% reales y traducirlas:
+                                  </p>
+                                  <div className="mt-3 space-y-2">
+                                    <div className="flex items-start gap-2">
+                                      <span className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 text-xs flex items-center justify-center shrink-0 font-bold">1</span>
+                                      <div>
+                                        <p className="text-xs text-foreground">Abrí el link de Reddit que te damos abajo — se abre en una pestaña nueva</p>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-start gap-2">
+                                      <span className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 text-xs flex items-center justify-center shrink-0 font-bold">2</span>
+                                      <div>
+                                        <p className="text-xs text-foreground">Seleccioná todo el texto (Ctrl+A) y copialo (Ctrl+C)</p>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-start gap-2">
+                                      <span className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 text-xs flex items-center justify-center shrink-0 font-bold">3</span>
+                                      <div>
+                                        <p className="text-xs text-foreground">Volvé acá, hacé click en "Pegar reglas reales" y pegalo (Ctrl+V)</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="flex gap-2 mt-3 flex-wrap">
+                                    <Button
+                                      size="sm"
+                                      className="text-xs bg-orange-500 hover:bg-orange-600 text-white gap-1"
+                                      asChild
+                                    >
+                                      <a href={`https://www.reddit.com/r/${selectedSub.name}/about/rules.json`} target="_blank" rel="noopener noreferrer">
+                                        <ExternalLink className="w-3 h-3" /> 1. Abrir reglas en Reddit
+                                      </a>
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      className="text-xs bg-orange-500 hover:bg-orange-600 text-white gap-1"
+                                      asChild
+                                    >
+                                      <a href={`https://www.reddit.com/r/${selectedSub.name}/about.json`} target="_blank" rel="noopener noreferrer">
+                                        <ExternalLink className="w-3 h-3" /> 1b. Abrir info del sub
+                                      </a>
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="text-xs border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 gap-1"
+                                      onClick={() => setShowManualPaste(true)}
+                                    >
+                                      2. Pegar reglas reales
+                                    </Button>
+                                  </div>
+                                </div>
                               </div>
                             </div>
                           )}
-                          {/* Manual Paste Textarea */}
+                          {/* Paste Area — accepts both JSON and plain text */}
                           {showManualPaste && (
-                            <div className="mt-2 p-3 rounded-lg bg-blue-500/5 border border-blue-500/20 space-y-2">
-                              <p className="text-xs text-blue-400 flex items-center gap-1">
-                                <Info className="w-3 h-3" />
-                                Pegá las reglas de r/{selectedSub.name} desde Reddit (texto plano)
+                            <div className="mt-3 p-4 rounded-lg bg-emerald-500/5 border border-emerald-500/20 space-y-3">
+                              <div className="flex items-center gap-2">
+                                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                                <p className="text-sm font-medium text-emerald-400">Pegá el JSON o texto de Reddit acá</p>
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                Podés pegar el JSON que copiaste de Reddit (funciona automático), o pegar las reglas en texto plano.
+                                Si pegás JSON, detectamos las reglas automáticamente.
                               </p>
                               <textarea
-                                className="w-full h-32 rounded-lg bg-background border border-border/50 p-3 text-sm resize-none focus:border-primary/50 focus:outline-none"
-                                placeholder="1. No spam or self-promotion...&#10;2. Must be 18+ to post...&#10;3. Tag your content with appropriate flair...&#10;..."
+                                className="w-full h-36 rounded-lg bg-background border border-border/50 p-3 text-xs font-mono resize-none focus:border-emerald-500/50 focus:outline-none"
+                                placeholder='Pegá acá el JSON de rules.json... (ej: {"rules": [{"short_name": "...", "description": "..."}]})&#10;&#10;O pegá las reglas en texto plano:&#10;1. No spam or self-promotion&#10;2. Must be 18+ to post'
                                 value={manualPasteText}
                                 onChange={(e) => setManualPasteText(e.target.value)}
                               />
                               <div className="flex gap-2">
                                 <Button
                                   size="sm"
-                                  className="text-xs bg-primary hover:bg-primary/90"
+                                  className="text-xs bg-emerald-500 hover:bg-emerald-600 text-white gap-1"
                                   disabled={!manualPasteText.trim() || isProcessingManual}
                                   onClick={handleManualPaste}
                                 >
-                                  {isProcessingManual ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <CheckCircle2 className="w-3 h-3 mr-1" />}
-                                  {isProcessingManual ? 'Procesando...' : 'Procesar reglas reales'}
+                                  {isProcessingManual ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
+                                  {isProcessingManual ? 'Traduciendo reglas reales...' : 'Procesar y traducir reglas reales'}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  className="text-xs bg-orange-500 hover:bg-orange-600 text-white gap-1"
+                                  asChild
+                                >
+                                  <a href={`https://www.reddit.com/r/${selectedSub.name}/about/rules.json`} target="_blank" rel="noopener noreferrer">
+                                    <ExternalLink className="w-3 h-3" /> Abrir Reddit de nuevo
+                                  </a>
                                 </Button>
                                 <Button
                                   size="sm"
