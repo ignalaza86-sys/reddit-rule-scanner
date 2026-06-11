@@ -1,5 +1,5 @@
 /**
- * Cloudflare Worker: Reddit Rule Scanner Proxy v2
+ * Cloudflare Worker: Reddit Rule Scanner Proxy
  * 
  * STRATEGY: HTML Scraping + Browser Relay
  * 
