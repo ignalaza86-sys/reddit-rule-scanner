@@ -168,6 +168,46 @@ export default {
       return new Response(JSON.stringify({ status: 'ok', message: `Cache cleared for r/${subLower}` }), { headers: { ...JSON_HEADERS, ...cors } });
     }
 
+    // ─── DEBUG ENDPOINT — shows raw HTML Worker receives ─
+    if (url.pathname === '/debug') {
+      const subreddit = url.searchParams.get('subreddit') || 'funny';
+      const subLower = subreddit.toLowerCase();
+      const ua = getRandomUA();
+      
+      try {
+        const res = await fetch(`https://old.reddit.com/r/${subLower}/about/rules/`, {
+          headers: {
+            'User-Agent': ua,
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+          },
+          redirect: 'follow',
+        });
+        
+        const html = await res.text();
+        const isBlocked = html.includes('whoa there') || html.includes('blocked due to') || html.includes('network policy');
+        
+        // Return first 3000 chars of HTML + analysis
+        return new Response(JSON.stringify({
+          subreddit: subLower,
+          status: res.status,
+          contentType: res.headers.get('content-type'),
+          isBlocked,
+          htmlLength: html.length,
+          htmlPreview: html.substring(0, 3000),
+          // Check for rule-related content
+          hasRulesPage: html.includes('rulespage') || html.includes('rules-list') || html.includes('rule-item'),
+          hasRuleClass: html.includes('class="rule') || html.includes("class='rule"),
+          hasShortName: html.includes('short_name') || html.includes('shortName'),
+          hasDataRules: html.includes('"rules"'),
+          // Check if it's a redirect/login page
+          isLoginPage: html.includes('login') && html.length < 5000,
+        }, null, 2), { headers: { ...JSON_HEADERS, ...cors } });
+      } catch (e) {
+        return new Response(JSON.stringify({ error: e.message }), { headers: { ...JSON_HEADERS, ...cors } });
+      }
+    }
+
     // ─── TEST ENDPOINT ──────────────────────────────────
     if (url.pathname === '/test') {
       const subreddit = url.searchParams.get('subreddit') || 'funny';
